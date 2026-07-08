@@ -12,6 +12,7 @@ export default defineConfig(({ mode }) => {
   const runtimeEnv = loadEnv(mode, cwd(), '')
 
   return {
+    base: '/fund-sync/',
     plugins: [analyzeApiPlugin(runtimeEnv), react(), tailwindcss()],
   }
 })
