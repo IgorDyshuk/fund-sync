@@ -13,7 +13,7 @@ import { ConflictReview } from "./components/ConflictReview";
 import { ResultDashboard } from "./components/ResultDashboard";
 import { TradeInputPanel } from "./components/TradeInputPanel";
 import type { AppStatus, ConflictDraft } from "./types/app";
-import { readApiError } from "./utils/api";
+import { isAnalyzeTimeout, postAnalyze, readApiError } from "./utils/api";
 
 function App() {
   const resultPanelRef = useRef<HTMLElement | null>(null);
@@ -75,10 +75,7 @@ function App() {
     formData.append("instructions", instructions);
 
     try {
-      const response = await fetch("/api/analyze", {
-        method: "POST",
-        body: formData,
-      });
+      const response = await postAnalyze(formData);
 
       if (!response.ok) {
         throw new Error(await readApiError(response));
@@ -95,7 +92,9 @@ function App() {
     } catch (requestError) {
       setStatus("error");
       setError(
-        requestError instanceof Error
+        isAnalyzeTimeout(requestError)
+          ? "API анализа не ответил за 90 секунд. Проверь backend-деплой и ключ Gemini."
+          : requestError instanceof Error
           ? requestError.message
           : "Не удалось обработать сделку.",
       );

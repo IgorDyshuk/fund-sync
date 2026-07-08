@@ -18,16 +18,41 @@ npm run build
 
 During local development Vite serves `POST /api/analyze` from `vite.config.ts`.
 Set `GEMINI_API_KEY` to enable real Vision analysis. Without it the endpoint returns
-a setup error; use the `Демо` button to test the UI without calling Gemini.
+a setup error.
 
 Create `.env` from `.env.example` for real screenshot analysis:
 
 ```bash
 GEMINI_API_KEY=your-gemini-key-here
 GEMINI_MODEL=gemini-3.5-flash
+VITE_ANALYZE_API_URL=
 ```
 
 Restart `npm run dev` after changing `.env`.
+
+## Production Deploy
+
+GitHub Pages can host only the static React build. It cannot run `/api/analyze`
+or safely store `GEMINI_API_KEY`, so the deployed page must call a separate
+backend endpoint.
+
+This repo includes a Vercel serverless function at `api/analyze.ts`. Deploy the
+repo to Vercel and set these environment variables in the Vercel project:
+
+```bash
+GEMINI_API_KEY=your-gemini-key-here
+GEMINI_MODEL=gemini-3.5-flash
+ALLOWED_ORIGIN=https://igordyshuk.github.io
+```
+
+Then build the GitHub Pages frontend with the full Vercel API URL:
+
+```bash
+VITE_ANALYZE_API_URL=https://your-vercel-project.vercel.app/api/analyze npm run deploy
+```
+
+After that, `https://IgorDyshuk.github.io/fund-sync/` will send screenshots to
+the deployed backend instead of the local Vite-only API.
 
 `POST /api/analyze`
 
