@@ -36,8 +36,12 @@ GitHub Pages can host only the static React build. It cannot run `/api/analyze`
 or safely store `GEMINI_API_KEY`, so the deployed page must call a separate
 backend endpoint.
 
-This repo includes a Vercel serverless function at `api/analyze.ts`. Deploy the
-repo to Vercel and set these environment variables in the Vercel project:
+This repo includes a Vercel serverless function at `api/analyze.ts`. The most
+reliable option is to deploy the whole app to Vercel. In that case the frontend
+and `/api/analyze` live on the same domain, and no `VITE_ANALYZE_API_URL` is
+needed.
+
+Set these environment variables in the Vercel project:
 
 ```bash
 GEMINI_API_KEY=your-gemini-key-here
@@ -45,7 +49,8 @@ GEMINI_MODEL=gemini-3.5-flash
 ALLOWED_ORIGIN=https://igordyshuk.github.io
 ```
 
-Then build the GitHub Pages frontend with the full Vercel API URL:
+If the static frontend stays on GitHub Pages, build it with the full Vercel API
+URL:
 
 ```bash
 VITE_ANALYZE_API_URL=https://your-vercel-project.vercel.app/api/analyze npm run deploy
@@ -53,6 +58,9 @@ VITE_ANALYZE_API_URL=https://your-vercel-project.vercel.app/api/analyze npm run 
 
 After that, `https://IgorDyshuk.github.io/fund-sync/` will send screenshots to
 the deployed backend instead of the local Vite-only API.
+
+`npm run deploy` intentionally fails when `VITE_ANALYZE_API_URL` is missing,
+because GitHub Pages cannot handle `POST /api/analyze` and would return `405`.
 
 `POST /api/analyze`
 

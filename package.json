@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "predeploy": "npm run build",
+    "predeploy": "node scripts/ensure-production-api.mjs && npm run build",
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {

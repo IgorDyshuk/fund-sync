@@ -1,7 +1,18 @@
 const analyzeTimeoutMs = 90_000;
 
 export function getAnalyzeApiUrl() {
-  return import.meta.env.VITE_ANALYZE_API_URL?.trim() || "/api/analyze";
+  const configuredUrl = import.meta.env.VITE_ANALYZE_API_URL?.trim();
+  if (configuredUrl) {
+    return configuredUrl;
+  }
+
+  if (import.meta.env.PROD && window.location.hostname.endsWith("github.io")) {
+    throw new Error(
+      "Для GitHub Pages не задан VITE_ANALYZE_API_URL. Нужен backend URL, например https://your-vercel-project.vercel.app/api/analyze.",
+    );
+  }
+
+  return "/api/analyze";
 }
 
 export async function postAnalyze(formData: FormData) {
