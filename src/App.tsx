@@ -1,22 +1,31 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { AnalyzeSheet } from "./components/AnalyzeSheet";
+import { HomePage } from "./components/HomePage";
 import { analysisResponseSchema, type AnalysisResponse } from "./lib/analysisSchema";
 import {
   applyConflictDrafts,
   createInitialConflictDrafts,
 } from "./lib/conflicts";
+import { demoAnalysis } from "./lib/demoAnalysis";
 import {
   calculateTrade,
   type TradeAnalysisInput,
   type TradeCalculation,
 } from "./lib/tradeCalculator";
-import { ConflictReview } from "./components/ConflictReview";
-import { ResultDashboard } from "./components/ResultDashboard";
-import { TradeInputPanel } from "./components/TradeInputPanel";
-import type { AppStatus, ConflictDraft } from "./types/app";
+import { loadTradeHistory, saveTradeHistory } from "./lib/tradeHistory";
+import type { AppStatus, ConflictDraft, SavedTrade } from "./types/app";
 import { isAnalyzeTimeout, postAnalyze, readApiError } from "./utils/api";
 
+const sheetAnimationMs = 300;
+const demoEnabled =
+  import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO === "true";
+
 function App() {
-  const resultPanelRef = useRef<HTMLElement | null>(null);
+  const closeTimerRef = useRef<number | null>(null);
+  const requestTokenRef = useRef(0);
+  const [history, setHistory] = useState<SavedTrade[]>(() => loadTradeHistory());
+  const [isSheetMounted, setIsSheetMounted] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [tradeFiles, setTradeFiles] = useState<File[]>([]);
   const [instructions, setInstructions] = useState("");
   const [status, setStatus] = useState<AppStatus>("idle");
@@ -39,25 +48,21 @@ function App() {
 
   const canAnalyze = tradeFiles.length > 0 || Boolean(instructions.trim());
 
-  useEffect(() => {
-    if (status !== "result" || !resultAnalysis) {
-      return;
-    }
+  function openAnalyzeSheet() {
+    clearCloseTimer();
+    setIsSheetMounted(true);
+    window.requestAnimationFrame(() => setIsSheetOpen(true));
+  }
 
-    const isMobile = window.matchMedia("(max-width: 1023px)").matches;
-    if (!isMobile) {
-      return;
-    }
-
-    const animationFrame = window.requestAnimationFrame(() => {
-      resultPanelRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    });
-
-    return () => window.cancelAnimationFrame(animationFrame);
-  }, [resultAnalysis, status]);
+  function closeAnalyzeSheet() {
+    clearCloseTimer();
+    requestTokenRef.current += 1;
+    setIsSheetOpen(false);
+    closeTimerRef.current = window.setTimeout(() => {
+      setIsSheetMounted(false);
+      resetAnalysisState();
+    }, sheetAnimationMs);
+  }
 
   async function analyzeTrade() {
     if (!canAnalyze) {
@@ -66,6 +71,8 @@ function App() {
       return;
     }
 
+    const requestToken = requestTokenRef.current + 1;
+    requestTokenRef.current = requestToken;
     setStatus("analyzing");
     setError(null);
     setResultAnalysis(null);
@@ -76,6 +83,9 @@ function App() {
 
     try {
       const response = await postAnalyze(formData);
+      if (requestTokenRef.current !== requestToken) {
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(await readApiError(response));
@@ -90,13 +100,17 @@ function App() {
 
       openAnalysis(parsed.data);
     } catch (requestError) {
+      if (requestTokenRef.current !== requestToken) {
+        return;
+      }
+
       setStatus("error");
       setError(
         isAnalyzeTimeout(requestError)
           ? "API анализа не ответил за 90 секунд. Проверь backend-деплой и ключ Gemini."
           : requestError instanceof Error
-          ? requestError.message
-          : "Не удалось обработать сделку.",
+            ? requestError.message
+            : "Не удалось обработать сделку.",
       );
     }
   }
@@ -126,7 +140,45 @@ function App() {
     setError(null);
   }
 
-  function resetApp() {
+  function openDemoResult() {
+    requestTokenRef.current += 1;
+    setTradeFiles([]);
+    setInstructions("Демо-режим: локальный пример без запроса к Gemini.");
+    setAnalysis(demoAnalysis);
+    setResultAnalysis(demoAnalysis);
+    setConflictDrafts({});
+    setStatus("result");
+    setError(null);
+  }
+
+  function completeTrade() {
+    if (!resultAnalysis || !calculation) {
+      return;
+    }
+
+    const savedTrade: SavedTrade = {
+      id: createHistoryId(),
+      savedAt: new Date().toISOString(),
+      analysis: resultAnalysis,
+      calculation,
+      instructions,
+    };
+
+    setHistory((currentHistory) => {
+      const nextHistory = [savedTrade, ...currentHistory];
+      saveTradeHistory(nextHistory);
+      return nextHistory;
+    });
+
+    closeAnalyzeSheet();
+  }
+
+  function retryAnalysis() {
+    resetAnalysisState();
+  }
+
+  function resetAnalysisState() {
+    requestTokenRef.current += 1;
     setTradeFiles([]);
     setInstructions("");
     setStatus("idle");
@@ -136,42 +188,50 @@ function App() {
     setError(null);
   }
 
+  function clearCloseTimer() {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  }
+
   return (
-    <main className="min-h-screen bg-[#08090d] text-[#e7e9ee]">
-      <div className="mx-auto grid w-full max-w-[1440px] gap-3 px-3 py-3 md:px-4 lg:grid-cols-[390px_minmax(0,1fr)] lg:py-5">
-        <TradeInputPanel
+    <>
+      <HomePage history={history} onCreateTrade={openAnalyzeSheet} />
+
+      {isSheetMounted ? (
+        <AnalyzeSheet
+          isOpen={isSheetOpen}
           files={tradeFiles}
           instructions={instructions}
           status={status}
           error={error}
+          analysis={analysis}
+          resultAnalysis={resultAnalysis}
+          calculation={calculation}
+          conflictDrafts={conflictDrafts}
+          onClose={closeAnalyzeSheet}
           onFilesChange={setTradeFiles}
           onInstructionsChange={setInstructions}
           onAnalyze={analyzeTrade}
-          onReset={resetApp}
+          onDemo={demoEnabled ? openDemoResult : undefined}
+          onReset={resetAnalysisState}
+          onDraftsChange={setConflictDrafts}
+          onApplyConflicts={applyConflicts}
+          onDone={completeTrade}
+          onRetry={retryAnalysis}
         />
-
-        <section
-          ref={resultPanelRef}
-          className="scroll-mt-3 rounded-lg border border-white/10 bg-[#0d0f14] shadow-2xl shadow-black/30 lg:min-h-[calc(100vh-2.5rem)]"
-        >
-          {status === "review" && analysis ? (
-            <ConflictReview
-              analysis={analysis}
-              drafts={conflictDrafts}
-              onDraftsChange={setConflictDrafts}
-              onApply={applyConflicts}
-            />
-          ) : (
-            <ResultDashboard
-              analysis={resultAnalysis}
-              calculation={calculation}
-              isLoading={status === "analyzing"}
-            />
-          )}
-        </section>
-      </div>
-    </main>
+      ) : null}
+    </>
   );
+}
+
+function createHistoryId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `trade-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 export default App;

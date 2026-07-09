@@ -17,6 +17,9 @@ export default defineConfig(({ mode }) => {
 
   return {
     base,
+    server: {
+      allowedHosts: ['.ngrok-free.app'],
+    },
     plugins: [analyzeApiPlugin(runtimeEnv), react(), tailwindcss()],
   }
 })

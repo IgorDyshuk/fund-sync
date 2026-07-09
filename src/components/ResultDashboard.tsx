@@ -58,16 +58,16 @@ export function ResultDashboard({
 
   return (
     <article className="flex min-h-full flex-col">
-      <header className="border-b border-white/10 p-3 sm:p-4 xl:p-6">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between xl:gap-5">
+      <header className="border-b border-white/10 p-3 sm:p-4 xl:p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between xl:gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-xl font-semibold text-white sm:text-2xl xl:text-3xl">
+              <h2 className="text-xl font-semibold text-white sm:text-2xl xl:text-2xl">
                 {getPrimarySymbol(calculation.symbol)}
               </h2>
               <BundleBadge label={calculation.bundleType} />
             </div>
-            <div className="mt-1.5 flex items-center gap-2 text-xs text-[#aeb7c3] sm:text-sm xl:mt-3">
+            <div className="mt-1.5 flex items-center gap-2 text-xs text-[#aeb7c3] sm:text-sm xl:mt-2">
               <CalendarClock className="h-4 w-4 text-[#8a93a0]" />
               <span>{calculation.period}</span>
             </div>
@@ -83,12 +83,12 @@ export function ResultDashboard({
         </div>
       </header>
 
-      <div className="grid gap-3 p-3 xl:gap-5 xl:p-6">
+      <div className="grid gap-3 p-3 xl:gap-3 xl:p-4">
         <section className="grid gap-2 xl:gap-4">
-          <div className="grid gap-2 xl:flex xl:flex-nowrap xl:items-stretch xl:gap-4">
+          <div className="grid gap-2 xl:flex xl:flex-nowrap xl:items-stretch xl:gap-3">
             <VolumeSummary calculation={calculation} />
 
-            <div className="grid grid-cols-2 gap-2 xl:flex xl:min-w-0 xl:flex-1 xl:flex-nowrap xl:gap-4">
+            <div className="grid grid-cols-2 gap-2 xl:flex xl:min-w-0 xl:flex-1 xl:flex-nowrap xl:gap-3">
               {calculation.legs.map((leg) => (
                 <SideResultCard key={leg.id} leg={leg} />
               ))}
@@ -122,12 +122,12 @@ export function ResultDashboard({
 
 function VolumeSummary({ calculation }: { calculation: TradeCalculation }) {
   return (
-    <section className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5 xl:flex xl:min-h-[190px] xl:flex-[0_0_450px] xl:flex-col xl:p-5">
-      <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-white xl:mb-4 xl:gap-3 xl:text-xl">
-        <BarChart3 className="h-4 w-4 text-emerald-300 xl:h-7 xl:w-7" />
+    <section className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5 xl:flex xl:min-h-[158px] xl:flex-[0_0_430px] xl:flex-col xl:p-4">
+      <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-white xl:mb-3 xl:gap-2.5 xl:text-lg">
+        <BarChart3 className="h-4 w-4 text-emerald-300 xl:h-6 xl:w-6" />
         Задействовано USDT
       </div>
-      <div className="grid min-w-0 grid-cols-3 gap-1.5 xl:min-h-0 xl:flex-1 xl:grid-cols-[repeat(3,minmax(0,1fr))] xl:items-stretch xl:gap-3">
+      <div className="grid min-w-0 grid-cols-3 gap-1.5 xl:min-h-0 xl:flex-1 xl:grid-cols-[repeat(3,minmax(0,1fr))] xl:items-stretch xl:gap-2.5">
         <VolumeCell
           label="Всего"
           value={calculation.display.totalVolume}
@@ -155,18 +155,18 @@ function VolumeCell({
   return (
     <div
       className={cn(
-        "min-w-0 rounded-md border px-2 py-1.5 xl:flex xl:h-full xl:min-h-0 xl:flex-col xl:justify-center xl:rounded-lg xl:px-4 xl:py-3",
+        "min-w-0 rounded-md border px-2 py-1.5 xl:flex xl:h-full xl:min-h-0 xl:flex-col xl:justify-center xl:rounded-lg xl:px-3 xl:py-3",
         primary
           ? "border-emerald-300/30 bg-emerald-300/[0.07]"
           : "border-white/10 bg-white/[0.03]",
       )}
     >
-      <div className="truncate text-[11px] font-medium uppercase text-[#8a93a0] xl:text-xs">
+      <div className="truncate text-[11px] font-medium uppercase text-[#8a93a0] xl:text-[11px]">
         {label}
       </div>
       <div
         className={cn(
-          "mt-0.5 min-w-0 break-words text-[11px] font-semibold leading-tight xl:mt-2 xl:whitespace-nowrap xl:text-[clamp(0.8rem,0.82vw,1rem)]",
+          "mt-0.5 min-w-0 break-words text-[11px] font-semibold leading-tight xl:mt-1.5 xl:whitespace-nowrap xl:text-[clamp(0.88rem,0.78vw,0.98rem)]",
           primary ? "text-emerald-100" : "text-white",
         )}
         title={value}
@@ -185,7 +185,7 @@ function SideResultCard({ leg }: { leg: TradeLegCalculation }) {
   return (
     <section
       className={cn(
-        "min-w-0 rounded-lg border p-2.5 transition xl:min-h-[190px] xl:flex-1 xl:p-5",
+        "min-w-0 rounded-lg border p-2.5 transition xl:min-h-[158px] xl:flex-1 xl:p-4",
         positive
           ? "border-emerald-300/40 bg-emerald-300/[0.08] shadow-[0_0_28px_rgba(110,231,183,0.1)]"
           : negative
@@ -193,7 +193,7 @@ function SideResultCard({ leg }: { leg: TradeLegCalculation }) {
             : "border-white/10 bg-white/[0.03]",
       )}
     >
-      <div className="grid h-full min-w-0 content-between gap-2 xl:gap-4">
+      <div className="grid h-full min-w-0 content-between gap-2 xl:gap-3">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-white xl:gap-2 xl:text-base">
             {leg.type === "futures" ? (
@@ -212,7 +212,7 @@ function SideResultCard({ leg }: { leg: TradeLegCalculation }) {
         <div className="min-w-0">
           <div
             className={cn(
-              "break-words text-lg font-semibold leading-tight xl:text-3xl",
+              "break-words text-lg font-semibold leading-tight xl:text-2xl",
               positive
                 ? "text-emerald-200"
                 : negative
@@ -223,7 +223,7 @@ function SideResultCard({ leg }: { leg: TradeLegCalculation }) {
             {leg.display.pnl}
           </div>
           <div
-            className="mt-1 truncate text-[11px] text-[#aeb7c3] xl:mt-2 xl:text-sm"
+            className="mt-1 truncate text-[11px] text-[#aeb7c3] xl:mt-1.5 xl:text-sm"
             title={leg.display.volume}
           >
             {leg.display.volume}
@@ -246,7 +246,7 @@ function NetResultCard({
   return (
     <section
       className={cn(
-        "rounded-lg border p-3 transition xl:p-5",
+        "rounded-lg border p-3 transition xl:p-4",
         positive
           ? "border-emerald-300/40 bg-emerald-300/[0.08] shadow-[0_0_32px_rgba(110,231,183,0.14)]"
           : negative
@@ -267,7 +267,7 @@ function NetResultCard({
         </div>
         <div
           className={cn(
-            "break-words text-2xl font-semibold leading-tight xl:text-4xl",
+            "break-words text-2xl font-semibold leading-tight xl:text-3xl",
             positive
               ? "text-emerald-200"
               : negative

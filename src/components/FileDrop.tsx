@@ -39,19 +39,21 @@ export function FileDrop({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3">
-        <span className="flex items-center gap-2 text-sm font-medium text-[#dce2ea]">
+        <span className="flex items-center gap-2 text-sm font-medium text-[#dce2ea] lg:text-[13px]">
           <FileImage className="h-4 w-4 text-[#a7b0bd]" />
           {title}
         </span>
         <span className="text-xs text-[#8a93a0]">{files.length}</span>
       </div>
       {description ? (
-        <p className="text-xs leading-5 text-[#8a93a0]">{description}</p>
+        <p className="text-xs leading-5 text-[#8a93a0] lg:leading-[1.45]">
+          {description}
+        </p>
       ) : null}
       <label
         htmlFor={inputId}
         className={cn(
-          "flex min-h-20 items-center justify-center rounded-lg border border-dashed bg-[#0b0d12] px-4 py-3 text-center transition",
+          "flex min-h-20 items-center justify-center rounded-lg border border-dashed bg-[#0b0d12] px-4 py-3 text-center transition lg:min-h-[72px]",
           accentClasses,
         )}
       >
