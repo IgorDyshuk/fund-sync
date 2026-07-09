@@ -204,7 +204,7 @@ export async function analyzeWithGemini({
       const timeoutError = new Error(
         `Gemini не ответил за ${Math.round(timeoutMs / 1000)} секунд. Попробуй меньше скриншотов или повтори запрос позже.`,
       )
-      timeoutError.cause = error
+      ;(timeoutError as Error & { cause?: unknown }).cause = error
       throw timeoutError
     }
 
