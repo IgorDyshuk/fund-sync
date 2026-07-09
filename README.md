@@ -25,6 +25,7 @@ Create `.env` from `.env.example` for real screenshot analysis:
 ```bash
 GEMINI_API_KEY=your-gemini-key-here
 GEMINI_MODEL=gemini-3.5-flash
+GEMINI_TIMEOUT_MS=75000
 VITE_ANALYZE_API_URL=
 ```
 
@@ -46,6 +47,7 @@ Set these environment variables in the Vercel project:
 ```bash
 GEMINI_API_KEY=your-gemini-key-here
 GEMINI_MODEL=gemini-3.5-flash
+GEMINI_TIMEOUT_MS=75000
 ALLOWED_ORIGIN=https://igordyshuk.github.io
 ```
 

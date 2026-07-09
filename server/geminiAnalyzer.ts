@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer'
 import type { IncomingMessage } from 'node:http'
-import { Readable } from 'node:stream'
+import Busboy from 'busboy'
 
 type RuntimeEnv = Record<string, string | undefined>
 
@@ -45,16 +45,62 @@ export const missingGeminiApiKeyMessage =
   'GEMINI_API_KEY не задан. Добавь ключ в переменные окружения backend-деплоя или в локальный .env, затем перезапусти сервер.'
 
 export async function requestToFormData(req: IncomingMessage) {
-  const host = req.headers.host ?? '127.0.0.1'
-  const body = Readable.toWeb(req) as ReadableStream<Uint8Array>
-  const request = new Request(`http://${host}${req.url ?? '/api/analyze'}`, {
-    method: req.method,
-    headers: req.headers as HeadersInit,
-    body,
-    duplex: 'half',
-  } as RequestInit & { duplex: 'half' })
+  const contentType = String(req.headers['content-type'] ?? '')
+  if (!contentType.toLowerCase().includes('multipart/form-data')) {
+    return new FormData()
+  }
 
-  return request.formData()
+  return new Promise<FormData>((resolve, reject) => {
+    const formData = new FormData()
+    const busboy = Busboy({ headers: req.headers })
+    let settled = false
+
+    function fail(error: unknown) {
+      if (settled) {
+        return
+      }
+
+      settled = true
+      reject(error)
+    }
+
+    function finish() {
+      if (settled) {
+        return
+      }
+
+      settled = true
+      resolve(formData)
+    }
+
+    busboy.on('field', (fieldName, value) => {
+      formData.append(fieldName, value)
+    })
+
+    busboy.on('file', (fieldName, file, info) => {
+      const chunks: Buffer[] = []
+
+      file.on('data', (chunk: Uint8Array) => {
+        chunks.push(Buffer.from(chunk))
+      })
+
+      file.on('error', fail)
+
+      file.on('end', () => {
+        const fileName = info.filename || 'upload'
+        const mimeType = info.mimeType || 'application/octet-stream'
+        const fileBuffer = Buffer.concat(chunks)
+        const fileBytes = new Uint8Array(fileBuffer.byteLength)
+        fileBytes.set(fileBuffer)
+        formData.append(fieldName, new File([fileBytes], fileName, { type: mimeType }))
+      })
+    })
+
+    busboy.on('error', fail)
+    busboy.on('finish', finish)
+    req.on('error', fail)
+    req.pipe(busboy)
+  })
 }
 
 export function getFiles(formData: FormData, fieldName: string) {
@@ -116,35 +162,55 @@ export async function analyzeWithGemini({
   }
 
   const model = runtimeEnv.GEMINI_MODEL ?? 'gemini-3.5-flash'
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [
+  const timeoutMs = getGeminiTimeoutMs(runtimeEnv)
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+  let response: Response
+
+  try {
+    response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [
+              {
+                text: 'You extract crypto trade facts from screenshots. Never guess numbers, dates, symbols, or signs. Use null when unreadable. Return only schema-valid JSON.',
+              },
+            ],
+          },
+          contents: [
             {
-              text: 'You extract crypto trade facts from screenshots. Never guess numbers, dates, symbols, or signs. Use null when unreadable. Return only schema-valid JSON.',
+              role: 'user',
+              parts: content.map(geminiContentToPart),
             },
           ],
-        },
-        contents: [
-          {
-            role: 'user',
-            parts: content.map(geminiContentToPart),
+          generationConfig: {
+            temperature: 0,
+            responseMimeType: 'application/json',
+            responseJsonSchema: tradeAnalysisJsonSchema,
           },
-        ],
-        generationConfig: {
-          temperature: 0,
-          responseMimeType: 'application/json',
-          responseJsonSchema: tradeAnalysisJsonSchema,
-        },
-      }),
-    },
-  )
+        }),
+      },
+    )
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new Error(
+        `Gemini не ответил за ${Math.round(timeoutMs / 1000)} секунд. Попробуй меньше скриншотов или повтори запрос позже.`,
+        { cause: error },
+      )
+    }
+
+    throw error
+  } finally {
+    clearTimeout(timeoutId)
+  }
 
   const payload = (await response.json()) as GeminiResponse
   if (!response.ok) {
@@ -337,6 +403,19 @@ function nullableString() {
 
 function nullableNumber() {
   return { anyOf: [{ type: 'number' }, { type: 'null' }] }
+}
+
+function getGeminiTimeoutMs(runtimeEnv: RuntimeEnv) {
+  const configuredTimeout = Number(runtimeEnv.GEMINI_TIMEOUT_MS)
+  if (Number.isFinite(configuredTimeout) && configuredTimeout > 0) {
+    return configuredTimeout
+  }
+
+  return 75_000
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof Error && error.name === 'AbortError'
 }
 
 function geminiContentToPart(content: TextContent | ImageContent) {

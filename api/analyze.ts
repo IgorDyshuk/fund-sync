@@ -14,6 +14,7 @@ export const config = {
 const defaultAllowedOrigin = 'https://igordyshuk.github.io'
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
+  const startedAt = Date.now()
   setCorsHeaders(req, res)
 
   if (req.method === 'OPTIONS') {
@@ -36,11 +37,14 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       return
     }
 
+    console.info('[api/analyze] parsing multipart form data')
     const formData = await requestToFormData(req)
+    console.info(`[api/analyze] parsed form data in ${Date.now() - startedAt}ms`)
     const analysis = await analyzeFormData({
       runtimeEnv: process.env,
       formData,
     })
+    console.info(`[api/analyze] completed in ${Date.now() - startedAt}ms`)
 
     sendJson(res, 200, analysis)
   } catch (error) {
