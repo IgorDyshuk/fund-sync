@@ -201,10 +201,11 @@ export async function analyzeWithGemini({
     )
   } catch (error) {
     if (isAbortError(error)) {
-      throw new Error(
+      const timeoutError = new Error(
         `Gemini не ответил за ${Math.round(timeoutMs / 1000)} секунд. Попробуй меньше скриншотов или повтори запрос позже.`,
-        { cause: error },
       )
+      timeoutError.cause = error
+      throw timeoutError
     }
 
     throw error
