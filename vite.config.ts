@@ -8,7 +8,7 @@ import {
   analyzeFormData,
   missingGeminiApiKeyMessage,
   requestToFormData,
-} from './server/geminiAnalyzer.ts'
+} from './server/geminiAnalyzer.js'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {

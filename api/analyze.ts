@@ -3,7 +3,7 @@ import {
   analyzeFormData,
   missingGeminiApiKeyMessage,
   requestToFormData,
-} from '../server/geminiAnalyzer.ts'
+} from '../server/geminiAnalyzer.js'
 
 export const config = {
   api: {
