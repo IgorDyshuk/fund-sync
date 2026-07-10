@@ -68,10 +68,11 @@ export function parseGoogleCredentials(runtimeEnv: RuntimeEnv): GoogleCredential
     return credentials
   } catch (error) {
     const message = error instanceof Error ? error.message : 'unknown parse error'
-    throw new Error(
+    const wrappedError = new Error(
       `GOOGLE_CREDENTIALS_BASE64 содержит некорректный service account JSON: ${message}`,
-      { cause: error },
     )
+    ;(wrappedError as Error & { cause?: unknown }).cause = error
+    throw wrappedError
   }
 }
 

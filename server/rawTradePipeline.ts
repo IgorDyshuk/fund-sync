@@ -1097,7 +1097,11 @@ function normalizeConflictChoiceValue(value: unknown) {
     return numericValue
   }
 
-  return value === null || typeof value === 'string' ? value : null
+  if (value === null) {
+    return null
+  }
+
+  return typeof value === 'string' ? value : null
 }
 
 function isCompleteBuyOrder(transaction: RawTransaction) {

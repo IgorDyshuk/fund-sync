@@ -298,9 +298,10 @@ export async function analyzeWithGoogleOcrGemini({
     pipelineError = error
 
     if (!fallbackEnabled) {
-      throw new Error(`OCR-пайплайн не смог обработать сделку: ${getErrorMessage(error)}`, {
-        cause: error,
-      })
+      throw createErrorWithCause(
+        `OCR-пайплайн не смог обработать сделку: ${getErrorMessage(error)}`,
+        error,
+      )
     }
   }
 
@@ -339,9 +340,9 @@ export async function analyzeWithGoogleOcrGemini({
       ],
     }
   } catch (fallbackError) {
-    throw new Error(
+    throw createErrorWithCause(
       `OCR-пайплайн не смог обработать сделку: ${getErrorMessage(pipelineError)}. Fallback Gemini Vision тоже завершился ошибкой: ${getErrorMessage(fallbackError)}`,
-      { cause: fallbackError },
+      fallbackError,
     )
   }
 }
@@ -833,6 +834,12 @@ function isAbortError(error: unknown) {
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
+}
+
+function createErrorWithCause(message: string, cause: unknown) {
+  const error = new Error(message) as Error & { cause?: unknown }
+  error.cause = cause
+  return error
 }
 
 function createProviderError(
