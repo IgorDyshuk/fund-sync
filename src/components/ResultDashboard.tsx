@@ -8,7 +8,9 @@ import {
   TrendingDown,
   TrendingUp,
   Wallet,
+  X,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import type { AnalysisResponse } from "../lib/analysisSchema";
 import {
   formatPercent,
@@ -28,6 +30,23 @@ export function ResultDashboard({
   calculation,
   isLoading,
 }: ResultDashboardProps) {
+  const [isNotesOpen, setIsNotesOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isNotesOpen) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsNotesOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isNotesOpen]);
+
   if (isLoading) {
     return (
       <div className="flex min-h-60 items-center justify-center p-4 lg:min-h-full">
@@ -103,17 +122,62 @@ export function ResultDashboard({
         </section>
 
         {analysis.notes.length > 0 ? (
-          <section className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
-            <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-white">
-              <AlertTriangle className="h-4 w-4 text-amber-300" />
-              Notes
-            </div>
-            <ul className="grid gap-1 text-sm text-[#aeb7c3]">
-              {analysis.notes.map((note, index) => (
-                <li key={`${note}-${index}`}>{note}</li>
-              ))}
-            </ul>
-          </section>
+          <>
+            <button
+              type="button"
+              onClick={() => setIsNotesOpen(true)}
+              className="flex min-h-10 w-full items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 text-left text-sm font-semibold text-white transition hover:border-amber-300/30 hover:bg-amber-300/[0.05]"
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-300" />
+                <span>Заметки по связке</span>
+              </span>
+              <span className="shrink-0 text-xs font-medium text-[#9aa3af]">
+                {analysis.notes.length}
+              </span>
+            </button>
+
+            {isNotesOpen ? (
+              <div
+                className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-4"
+                onClick={() => setIsNotesOpen(false)}
+              >
+                <section
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="trade-notes-title"
+                  className="w-full max-w-lg rounded-xl border border-white/10 bg-[#11141a] p-4 text-[#e7e9ee] shadow-2xl shadow-black sm:p-5"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <AlertTriangle className="h-5 w-5 shrink-0 text-amber-300" />
+                      <h3
+                        id="trade-notes-title"
+                        className="text-lg font-semibold text-white"
+                      >
+                        Заметки по связке
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsNotesOpen(false)}
+                      aria-label="Закрыть заметки"
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 text-[#b9c0ca] transition hover:bg-white/[0.06] hover:text-white"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <ul className="mt-4 max-h-[60svh] space-y-2 overflow-y-auto rounded-lg border border-white/10 bg-white/[0.03] p-3 text-sm leading-6 text-[#aeb7c3]">
+                    {analysis.notes.map((note, index) => (
+                      <li key={`${note}-${index}`}>{note}</li>
+                    ))}
+                  </ul>
+                </section>
+              </div>
+            ) : null}
+          </>
         ) : null}
       </div>
     </article>

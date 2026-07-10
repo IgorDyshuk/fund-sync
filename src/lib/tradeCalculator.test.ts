@@ -116,6 +116,83 @@ describe('calculateTrade', () => {
     expect(result.display.totalVolume).toBe('3 100,00 USDT')
   })
 
+  it('applies hedge sign to spot leg raw PnL instead of trusting model sign', () => {
+    const result = calculateTrade({
+      future: {},
+      legs: [
+        {
+          type: 'futures',
+          symbol: 'SOLUSDT',
+          volumeUsdt: 1550,
+          pnlUsdt: 62.54,
+          realizedPnlUsdt: 62.54,
+        },
+        {
+          type: 'spot',
+          symbol: 'SOLUSDT',
+          volumeUsdt: 1550,
+          pnlUsdt: 15.54,
+          rawPnlUsdt: 15.54,
+          method: 'balance_delta',
+        },
+      ],
+    })
+
+    expect(result.signedSpotPnl).toBeCloseTo(-15.54)
+    expect(result.netResult).toBeCloseTo(47)
+  })
+
+  it('applies hedge sign to spot balance delta when futures leg is negative', () => {
+    const result = calculateTrade({
+      future: {},
+      legs: [
+        {
+          type: 'futures',
+          symbol: 'SOLUSDT',
+          volumeUsdt: 1550,
+          pnlUsdt: -62.54,
+          realizedPnlUsdt: -62.54,
+        },
+        {
+          type: 'spot',
+          symbol: 'SOLUSDT',
+          volumeUsdt: 1550,
+          balanceBeforeUsdt: 2840.18,
+          balanceAfterUsdt: 2824.64,
+          method: 'balance_delta',
+        },
+      ],
+    })
+
+    expect(result.signedSpotPnl).toBeCloseTo(15.54)
+    expect(result.netResult).toBeCloseTo(-47)
+  })
+
+  it('keeps manual signed spot leg PnL as the highest priority', () => {
+    const result = calculateTrade({
+      future: {},
+      legs: [
+        {
+          type: 'futures',
+          symbol: 'SOLUSDT',
+          volumeUsdt: 1550,
+          pnlUsdt: 62.54,
+        },
+        {
+          type: 'spot',
+          symbol: 'SOLUSDT',
+          volumeUsdt: 1550,
+          pnlUsdt: 15.54,
+          rawPnlUsdt: 15.54,
+          method: 'manual',
+        },
+      ],
+    })
+
+    expect(result.signedSpotPnl).toBeCloseTo(15.54)
+    expect(result.netResult).toBeCloseTo(78.08)
+  })
+
   it('shows dashes when required data is missing', () => {
     const result = calculateTrade({
       future: {},

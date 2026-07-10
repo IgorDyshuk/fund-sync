@@ -15,9 +15,15 @@ export function getAnalyzeApiUrl() {
   return "/api/analyze";
 }
 
-export async function postAnalyze(formData: FormData) {
+export async function postAnalyze(
+  formData: FormData,
+  options: { timeoutMs?: number } = {},
+) {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), analyzeTimeoutMs);
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    options.timeoutMs ?? analyzeTimeoutMs,
+  );
 
   try {
     return await fetch(getAnalyzeApiUrl(), {

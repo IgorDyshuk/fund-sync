@@ -1,11 +1,13 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import {
   analyzeFormData,
-  missingGeminiApiKeyMessage,
+  hasConfiguredAnalyzeProvider,
+  missingAnalyzeApiKeyMessage,
   requestToFormData,
 } from '../server/geminiAnalyzer.js'
 
 export const config = {
+  maxDuration: 120,
   api: {
     bodyParser: false,
   },
@@ -29,10 +31,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   }
 
   try {
-    if (!process.env.GEMINI_API_KEY) {
+    if (!hasConfiguredAnalyzeProvider(process.env)) {
       sendJson(res, 503, {
-        error: missingGeminiApiKeyMessage,
-        code: 'missing_gemini_api_key',
+        error: missingAnalyzeApiKeyMessage,
+        code: 'missing_analyze_api_key',
       })
       return
     }

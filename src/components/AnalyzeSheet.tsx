@@ -26,7 +26,6 @@ type AnalyzeSheetProps = {
   onFilesChange: (files: File[]) => void;
   onInstructionsChange: (instructions: string) => void;
   onAnalyze: () => void;
-  onDemo?: () => void;
   onReset: () => void;
   onDraftsChange: (drafts: Record<string, ConflictDraft>) => void;
   onApplyConflicts: () => void;
@@ -48,7 +47,6 @@ export function AnalyzeSheet({
   onFilesChange,
   onInstructionsChange,
   onAnalyze,
-  onDemo,
   onReset,
   onDraftsChange,
   onApplyConflicts,
@@ -227,7 +225,6 @@ export function AnalyzeSheet({
               onFilesChange={onFilesChange}
               onInstructionsChange={onInstructionsChange}
               onAnalyze={onAnalyze}
-              onDemo={onDemo}
               onReset={onReset}
             />
           </div>

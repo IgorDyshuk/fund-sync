@@ -6,7 +6,8 @@ import { defineConfig, loadEnv } from 'vite'
 import type { Plugin } from 'vite'
 import {
   analyzeFormData,
-  missingGeminiApiKeyMessage,
+  hasConfiguredAnalyzeProvider,
+  missingAnalyzeApiKeyMessage,
   requestToFormData,
 } from './server/geminiAnalyzer.js'
 
@@ -35,10 +36,10 @@ function analyzeApiPlugin(runtimeEnv: Record<string, string | undefined>): Plugi
         }
 
         try {
-          if (!runtimeEnv.GEMINI_API_KEY) {
+          if (!hasConfiguredAnalyzeProvider(runtimeEnv)) {
             sendJson(res, 503, {
-              error: missingGeminiApiKeyMessage,
-              code: 'missing_gemini_api_key',
+              error: missingAnalyzeApiKeyMessage,
+              code: 'missing_analyze_api_key',
             })
             return
           }

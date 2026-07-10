@@ -243,9 +243,10 @@ export function calculateTrade(input: TradeAnalysisInput): TradeCalculation {
 }
 
 export function normalizeTradeLegs(input: TradeAnalysisInput): TradeLegCalculation[] {
+  const futuresPnlContext = getFuturesPnlContext(input)
   const extractedLegs =
     input.legs
-      ?.map((leg, index) => normalizeTradeLeg(leg, index))
+      ?.map((leg, index) => normalizeTradeLeg(leg, index, futuresPnlContext))
       .filter((leg): leg is TradeLegCalculation => leg !== null) ?? []
 
   if (extractedLegs.length > 0) {
@@ -297,6 +298,7 @@ function normalizeLegacyLegs(input: TradeAnalysisInput): TradeLegCalculation[] {
           costUsdt: input.spot?.costUsdt,
         },
         legs.length,
+        futuresPnl,
       ) as TradeLegCalculation,
     )
   }
@@ -307,10 +309,11 @@ function normalizeLegacyLegs(input: TradeAnalysisInput): TradeLegCalculation[] {
 function normalizeTradeLeg(
   leg: TradeLegSnapshot,
   index: number,
+  futuresPnlContext?: number | null,
 ): TradeLegCalculation | null {
   const type = leg.type ?? 'unknown'
   const volume = getLegVolume(leg)
-  const pnl = getLegPnl(leg)
+  const pnl = getLegPnl(leg, futuresPnlContext)
   const symbol = normalizeDisplayText(leg.symbol)
   const side = leg.side ?? 'unknown'
 
@@ -352,31 +355,43 @@ function getLegVolume(leg: TradeLegSnapshot): number | null {
   return null
 }
 
-function getLegPnl(leg: TradeLegSnapshot): number | null {
+function getLegPnl(
+  leg: TradeLegSnapshot,
+  futuresPnlContext?: number | null,
+): number | null {
   const signedPnl = getNumber(leg.pnlUsdt)
-  if (signedPnl !== null) {
-    return signedPnl
-  }
 
   if (leg.type === 'futures') {
-    return getNumber(leg.realizedPnlUsdt)
+    return signedPnl ?? getNumber(leg.realizedPnlUsdt)
   }
 
   if (leg.type === 'spot') {
-    const before = getNumber(leg.balanceBeforeUsdt)
-    const after = getNumber(leg.balanceAfterUsdt)
-    if (before !== null && after !== null) {
-      return after - before
+    if (leg.method === 'manual' && signedPnl !== null) {
+      return signedPnl
     }
 
-    const revenue = getNumber(leg.revenueUsdt)
-    const cost = getNumber(leg.costUsdt)
-    if (revenue !== null && cost !== null) {
-      return revenue - cost
+    const rawSpotPnl = getRawSpotPnl(leg)
+    const hedgeSignedPnl = getSignedSpotPnl(futuresPnlContext, rawSpotPnl)
+    if (hedgeSignedPnl !== null) {
+      return hedgeSignedPnl
     }
   }
 
-  return null
+  return signedPnl
+}
+
+function getFuturesPnlContext(input: TradeAnalysisInput): number | null {
+  const legFuturesPnls =
+    input.legs
+      ?.filter((leg) => leg.type === 'futures')
+      .map((leg) => getNumber(leg.pnlUsdt) ?? getNumber(leg.realizedPnlUsdt)) ?? []
+
+  const summedLegPnl = sumComplete(legFuturesPnls)
+  if (summedLegPnl !== null) {
+    return summedLegPnl
+  }
+
+  return getNumber(input.future.realizedPnlUsdt)
 }
 
 function hasFutureData(future: FutureSnapshot): boolean {

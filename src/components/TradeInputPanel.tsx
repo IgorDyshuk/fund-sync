@@ -3,7 +3,6 @@ import {
   Check,
   ClipboardCheck,
   Copy,
-  Database,
   Loader2,
   RefreshCcw,
   ShieldCheck,
@@ -23,7 +22,6 @@ type TradeInputPanelProps = {
   onFilesChange: (files: File[]) => void;
   onInstructionsChange: (instructions: string) => void;
   onAnalyze: () => void;
-  onDemo?: () => void;
   onReset: () => void;
 };
 
@@ -35,7 +33,6 @@ export function TradeInputPanel({
   onFilesChange,
   onInstructionsChange,
   onAnalyze,
-  onDemo,
   onReset,
 }: TradeInputPanelProps) {
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
@@ -89,7 +86,7 @@ export function TradeInputPanel({
           <textarea
             value={instructions}
             onChange={(event) => onInstructionsChange(event.target.value)}
-            placeholder="Например: спот считать 15,54 USDT; комиссия уже учтена"
+            placeholder="Например: спот вышел в -16.9 USDT"
             className="min-h-24 resize-none rounded-lg border border-white/10 bg-[#0b0d12] px-3 py-3 text-sm text-white outline-none transition focus:border-emerald-300/70 focus:ring-2 focus:ring-emerald-300/20 lg:min-h-[112px] lg:flex-1"
           />
         </label>
@@ -114,32 +111,19 @@ export function TradeInputPanel({
         ) : null}
 
         <div className="grid gap-2">
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-            <button
-              type="button"
-              onClick={onAnalyze}
-              disabled={status === "analyzing"}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-300 px-4 text-sm font-semibold text-[#07110c] transition hover:bg-emerald-200 disabled:bg-white/10 disabled:text-white/40 lg:min-h-10"
-            >
-              {status === "analyzing" ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4" />
-              )}
-              Анализировать
-            </button>
-            {onDemo ? (
-              <button
-                type="button"
-                onClick={onDemo}
-                disabled={status === "analyzing"}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-white/10 px-3 text-sm font-medium text-[#dce2ea] transition hover:bg-white/[0.06] hover:text-white disabled:text-white/40 lg:min-h-10"
-              >
-                <Database className="h-4 w-4" />
-                Демо
-              </button>
-            ) : null}
-          </div>
+          <button
+            type="button"
+            onClick={onAnalyze}
+            disabled={status === "analyzing"}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-300 px-4 text-sm font-semibold text-[#07110c] transition hover:bg-emerald-200 disabled:bg-white/10 disabled:text-white/40 lg:min-h-10"
+          >
+            {status === "analyzing" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+            Анализировать
+          </button>
           <button
             type="button"
             onClick={onReset}

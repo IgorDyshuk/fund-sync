@@ -6,19 +6,17 @@ import {
   applyConflictDrafts,
   createInitialConflictDrafts,
 } from "./lib/conflicts";
-import { demoAnalysis } from "./lib/demoAnalysis";
 import {
   calculateTrade,
   type TradeAnalysisInput,
   type TradeCalculation,
 } from "./lib/tradeCalculator";
+import { applyManualInstructionsToAnalysis } from "./lib/manualInstructions";
 import { loadTradeHistory, saveTradeHistory } from "./lib/tradeHistory";
 import type { AppStatus, ConflictDraft, SavedTrade } from "./types/app";
 import { isAnalyzeTimeout, postAnalyze, readApiError } from "./utils/api";
 
 const sheetAnimationMs = 300;
-const demoEnabled =
-  import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO === "true";
 
 function App() {
   const closeTimerRef = useRef<number | null>(null);
@@ -82,7 +80,9 @@ function App() {
     formData.append("instructions", instructions);
 
     try {
-      const response = await postAnalyze(formData);
+      const response = await postAnalyze(formData, {
+        timeoutMs: 130_000,
+      });
       if (requestTokenRef.current !== requestToken) {
         return;
       }
@@ -107,7 +107,7 @@ function App() {
       setStatus("error");
       setError(
         isAnalyzeTimeout(requestError)
-          ? "API анализа не ответил за 90 секунд. Проверь backend-деплой и ключ Gemini."
+          ? "API анализа не ответил за 130 секунд. Попробуй меньше скриншотов или повтори запрос позже."
           : requestError instanceof Error
             ? requestError.message
             : "Не удалось обработать сделку.",
@@ -116,16 +116,21 @@ function App() {
   }
 
   function openAnalysis(nextAnalysis: AnalysisResponse) {
-    setAnalysis(nextAnalysis);
+    const patchedAnalysis = applyManualInstructionsToAnalysis(
+      nextAnalysis,
+      instructions,
+    );
+
+    setAnalysis(patchedAnalysis);
     setError(null);
 
-    if (nextAnalysis.conflicts.length > 0) {
-      setConflictDrafts(createInitialConflictDrafts(nextAnalysis.conflicts));
+    if (patchedAnalysis.conflicts.length > 0) {
+      setConflictDrafts(createInitialConflictDrafts(patchedAnalysis.conflicts));
       setStatus("review");
       return;
     }
 
-    setResultAnalysis(nextAnalysis);
+    setResultAnalysis(patchedAnalysis);
     setStatus("result");
   }
 
@@ -135,18 +140,9 @@ function App() {
     }
 
     const patchedAnalysis = applyConflictDrafts(analysis, conflictDrafts);
-    setResultAnalysis(patchedAnalysis);
-    setStatus("result");
-    setError(null);
-  }
-
-  function openDemoResult() {
-    requestTokenRef.current += 1;
-    setTradeFiles([]);
-    setInstructions("Демо-режим: локальный пример без запроса к Gemini.");
-    setAnalysis(demoAnalysis);
-    setResultAnalysis(demoAnalysis);
-    setConflictDrafts({});
+    setResultAnalysis(
+      applyManualInstructionsToAnalysis(patchedAnalysis, instructions),
+    );
     setStatus("result");
     setError(null);
   }
@@ -174,7 +170,13 @@ function App() {
   }
 
   function retryAnalysis() {
-    resetAnalysisState();
+    requestTokenRef.current += 1;
+    setStatus("idle");
+    setAnalysis(null);
+    setResultAnalysis(null);
+    setConflictDrafts({});
+    setError(null);
+    void analyzeTrade();
   }
 
   function resetAnalysisState() {
@@ -214,7 +216,6 @@ function App() {
           onFilesChange={setTradeFiles}
           onInstructionsChange={setInstructions}
           onAnalyze={analyzeTrade}
-          onDemo={demoEnabled ? openDemoResult : undefined}
           onReset={resetAnalysisState}
           onDraftsChange={setConflictDrafts}
           onApplyConflicts={applyConflicts}
