@@ -131,6 +131,10 @@ Response:
 ```json
 {
   "bundleType": "Фьючерс + Спот",
+  "spread": {
+    "entry": 0.000137,
+    "exit": -0.000101
+  },
   "legs": [
     {
       "id": "future-main",
@@ -194,6 +198,16 @@ Response:
   "notes": []
 }
 ```
+
+`spread.entry` and `spread.exit` use the percentage difference formula:
+`abs(price1 - price2) / ((price1 + price2) / 2) * 100`, with a sign applied by
+the hedge rule. For `Фьючерс + Спот` with a short futures leg, entry is positive
+when the spot buy average is below the futures entry, and exit is positive when
+the spot sell average is above the futures exit. For a `Long + Short` futures
+bundle, Long is treated like the spot side: entry is positive when Long entry
+is below Short entry, and exit is positive when Long exit is above Short exit.
+Spot averages are weighted by extracted order amounts; deposits, withdrawals,
+transfers, and invalid order rows are ignored.
 
 The browser never receives Gemini or Google Cloud credentials. The backend calls
 Google Cloud Vision/Gemini and returns this structured JSON shape.

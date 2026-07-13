@@ -94,6 +94,11 @@ const spotSchema = z.object({
   costUsdt: numberField.optional(),
 })
 
+const spreadSchema = z.object({
+  entry: numberField.optional(),
+  exit: numberField.optional(),
+})
+
 const legSchema = z.object({
   id: textField.optional(),
   label: textField.optional(),
@@ -116,6 +121,7 @@ const legSchema = z.object({
 
 export const analysisResponseSchema = z.object({
   bundleType: textField.optional(),
+  spread: spreadSchema.optional(),
   legs: z.array(legSchema).catch([]).default([]),
   future: futureSchema.default({}),
   spot: spotSchema.default({}),

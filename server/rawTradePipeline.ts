@@ -39,6 +39,10 @@ type AnalysisLeg = {
 
 export type AnalysisResponseContract = {
   bundleType: string | null
+  spread: {
+    entry: number | null
+    exit: number | null
+  }
   legs: AnalysisLeg[]
   future: {
     symbol: string | null
@@ -107,6 +111,22 @@ type ManualSpotOverride = {
   mode: 'raw' | 'signed'
 }
 
+export type ManualSpreadPrices = {
+  spotBuyPrice: number | null
+  spotSellPrice: number | null
+  spotVolumeUsdt: number | null
+  spotRevenueUsdt: number | null
+  spotCostUsdt: number | null
+  futuresEntryPrice: number | null
+  futuresExitPrice: number | null
+}
+
+type SpreadCalculation = {
+  entry: number | null
+  exit: number | null
+  notes: string[]
+}
+
 type SpotCalculation = {
   method: SpotMethod
   volumeUsdt: number | null
@@ -121,10 +141,14 @@ type SpotCalculation = {
 }
 
 const spotPnlPatterns = [
-  /(?<phrase>(?:спот|spot)[^\n.;]{0,80}?(?:pnl|пнл|итог|результат|считать|плюс|минус|прибыл\p{L}*|убыт\p{L}*)[^\n.;]{0,30}?(?<value>[+-]?\s*\d[\d\s.,]*))/iu,
+  /(?<phrase>(?:спот|spot)[^\n.;]{0,80}?)(?<value>[+-]\s*\d[\d\s.,]*)/iu,
+  /(?<phrase>(?:спот|spot)[^\n.;]{0,80}?(?:pnl|пнл|итог|результат|считать|вышел\p{L}*|вышло|получил\p{L}*|плюс|минус|прибыл\p{L}*|убыт\p{L}*)[^\n.;]{0,30}?(?<value>[+-]?\s*\d[\d\s.,]*))/iu,
   /(?<phrase>(?:pnl|пнл|итог|результат|плюс|минус|прибыл\p{L}*|убыт\p{L}*)[^\n.;]{0,50}?(?:по\s+)?(?:спот|spot)[^\n.;]{0,30}?(?<value>[+-]?\s*\d[\d\s.,]*))/iu,
   /(?<phrase>(?:spot\s+pnl|pnl\s+spot)[^\n.;]{0,30}?(?<value>[+-]?\s*\d[\d\s.,]*))/iu,
 ]
+
+const spotSummaryPnlPattern =
+  /(?:^|\n)\s*(?:[-*]\s*)?(?<phrase>(?:pnl|пнл|profit|прибыл\p{L}*|результат)(?:\s*\([^\n)]*\))?)[^\n.;:]{0,20}[:=]\s*(?<value>[+-]?\s*\d[\d\s.,]*)/iu
 
 export function createRawExtractionPrompt({
   instructions,
@@ -152,6 +176,7 @@ Extraction rules:
 - Do not rely on upload order. Classify each screenshot by visible content.
 - Extract every distinct futures position into futuresLegs[]. Use futuresLeg for the primary first futures leg for legacy compatibility.
 - For futures, extract only visible/raw fields: symbol, side, realizedPnlUsdt, volumeUsdt, coinAmount, entryPrice, exitPrice, startedAt, endedAt, roiPercent.
+- For futures, entryPrice and exitPrice mean the visible average opening and closing prices. Extract them exactly when visible; never calculate them from PnL.
 - If futures volumeUsdt is not visible but quantity/size/amount in coins and entryPrice are visible, set coinAmount and entryPrice; Stage 2 will calculate volumeUsdt as abs(coinAmount * entryPrice).
 - For spot order history, extract EACH filled order row into spotData.extractedTransactions[] with type "buy" or "sell".
 - When OCR includes prepared layout rows, use one prepared row as one order. Do not combine amount, price, and totalUsdt from different rows.
@@ -194,6 +219,7 @@ Extraction rules:
 - Use Raw OCR text to verify labels and numbers, and Prepared layout rows to pair values from the same visual row. Neither source should be ignored.
 - Extract every distinct futures position into futuresLegs[]. Use futuresLeg for the primary first futures leg for legacy compatibility.
 - For futures, extract only raw fields visible in OCR: symbol, side, realizedPnlUsdt, volumeUsdt, coinAmount, entryPrice, exitPrice, startedAt, endedAt, roiPercent.
+- For futures, entryPrice and exitPrice mean the visible average opening and closing prices. Extract them exactly when visible; never calculate them from PnL.
 - If futures volumeUsdt is not visible but quantity/size/amount in coins and entryPrice are visible, set coinAmount and entryPrice; Stage 2 will calculate volumeUsdt as abs(coinAmount * entryPrice).
 - For spot order history, reconstruct filled order rows from OCR text and put each row into spotData.extractedTransactions[] with type "buy" or "sell".
 - Prefer the prepared layout rows over raw OCR text when pairing amount, price, and totalUsdt. Do not combine values from different rows.
@@ -289,16 +315,21 @@ export function buildAnalysisFromRawExtraction(
     : null
   const legs = spotLeg ? [...futuresAnalysisLegs, spotLeg] : futuresAnalysisLegs
   const primaryFuture = futuresLegs[0] ?? null
+  const spread = calculateSpread(futuresLegs, raw.spotData, options.instructions ?? '')
   const notes = [
     ...raw.notes,
     ...spotCalculation.notes,
     ...createFuturesVolumeNotes(futuresLegs),
-    ...createSpreadNotes(primaryFuture, raw.spotData),
+    ...spread.notes,
   ]
   const conflicts = [...raw.conflicts, ...spotCalculation.conflicts]
 
   return {
     bundleType: getBundleType(legs, raw.bundleType),
+    spread: {
+      entry: spread.entry,
+      exit: spread.exit,
+    },
     legs,
     future: {
       symbol: primaryFuture?.symbol ?? null,
@@ -371,6 +402,7 @@ function calculateSpot(
   },
 ): SpotCalculation {
   const manualOverride = parseManualSpotOverride(options.instructions)
+  const manualSpotSummary = parseManualSpreadPrices(options.instructions)
   const manualPnl = manualOverride?.amount ?? normalizeNumber(spotData.manualPnl)
   const manualIsSigned = manualOverride?.mode === 'signed' || (manualOverride ? false : isNegative(manualPnl))
   const orderTotals = getOrderTotals(spotData.extractedTransactions)
@@ -390,8 +422,10 @@ function calculateSpot(
   })
   const manualSignedPnl = manualIsSigned && manualPnl !== null ? manualPnl : null
   const pnlUsdt =
-    manualSignedPnl ??
-    (rawPnlUsdt !== null ? getSignedSpotPnl(options.futuresPnlContext, rawPnlUsdt) : null)
+    manualOverride?.mode === 'raw'
+      ? null
+      : manualSignedPnl ??
+        (rawPnlUsdt !== null ? getSignedSpotPnl(options.futuresPnlContext, rawPnlUsdt) : null)
   const conflicts = createSpotSourceConflicts({
     ordersRawPnl,
     balanceRawPnl,
@@ -403,19 +437,36 @@ function calculateSpot(
     ordersRawPnl,
     balanceRawPnl,
   )
+  const manualSummaryNotes = createManualSpotSummaryNotes(manualSpotSummary)
 
   return {
     method,
-    volumeUsdt: orderTotals.volumeUsdt,
+    volumeUsdt: manualSpotSummary.spotVolumeUsdt ?? orderTotals.volumeUsdt,
     rawPnlUsdt,
     pnlUsdt,
     balanceBeforeUsdt: spotData.balanceBeforeUsdt,
     balanceAfterUsdt: spotData.balanceAfterUsdt,
-    revenueUsdt: orderTotals.revenueUsdt,
-    costUsdt: orderTotals.costUsdt,
+    revenueUsdt: manualSpotSummary.spotRevenueUsdt ?? orderTotals.revenueUsdt,
+    costUsdt: manualSpotSummary.spotCostUsdt ?? orderTotals.costUsdt,
     conflicts,
-    notes,
+    notes: [...notes, ...manualSummaryNotes],
   }
+}
+
+function createManualSpotSummaryNotes(prices: ManualSpreadPrices) {
+  const notes: string[] = []
+
+  if (prices.spotVolumeUsdt !== null) {
+    notes.push(`Ручной объем спота: ${formatUsdt(prices.spotVolumeUsdt)}.`)
+  }
+
+  if (prices.spotRevenueUsdt !== null && prices.spotCostUsdt !== null) {
+    notes.push(
+      `Ручной spot summary: выручка ${formatUsdt(prices.spotRevenueUsdt)}, затраты ${formatUsdt(prices.spotCostUsdt)}.`,
+    )
+  }
+
+  return notes
 }
 
 function rawFuturesToAnalysisLeg(
@@ -744,27 +795,154 @@ function createFuturesVolumeNotes(futuresLegs: RawFuturesLeg[]) {
     })
 }
 
-function createSpreadNotes(
-  primaryFuture: RawFuturesLeg | null,
+function calculateSpread(
+  futuresLegs: RawFuturesLeg[],
   spotData: RawExtractionResult['spotData'],
-) {
-  if (!primaryFuture) {
-    return []
+  instructions: string,
+): SpreadCalculation {
+  const manualPrices = parseManualSpreadPrices(instructions)
+  const adjustedFuturesLegs = futuresLegs.map((leg, index) => {
+    if (index !== 0) {
+      return leg
+    }
+
+    return {
+      ...leg,
+      entryPrice: manualPrices.futuresEntryPrice ?? leg.entryPrice,
+      exitPrice: manualPrices.futuresExitPrice ?? leg.exitPrice,
+    }
+  })
+
+  const longLegs = adjustedFuturesLegs.filter((leg) => leg.side === 'long')
+  const shortLegs = adjustedFuturesLegs.filter((leg) => leg.side === 'short')
+
+  if (longLegs.length > 0 && shortLegs.length > 0) {
+    const longEntry = getWeightedFuturesPrice(longLegs, 'entryPrice')
+    const shortEntry = getWeightedFuturesPrice(shortLegs, 'entryPrice')
+    const longExit = getWeightedFuturesPrice(longLegs, 'exitPrice')
+    const shortExit = getWeightedFuturesPrice(shortLegs, 'exitPrice')
+    const entry = getSignedSpreadPercent(
+      longEntry,
+      shortEntry,
+      longEntry !== null && shortEntry !== null && longEntry < shortEntry,
+    )
+    const exit = getSignedSpreadPercent(
+      longExit,
+      shortExit,
+      longExit !== null && shortExit !== null && longExit > shortExit,
+    )
+
+    return {
+      entry,
+      exit,
+      notes: createFuturesSpreadNotes({
+        entry,
+        exit,
+        longEntry,
+        shortEntry,
+        longExit,
+        shortExit,
+      }),
+    }
   }
 
-  const spotEntryPrice = getWeightedAveragePrice(spotData.extractedTransactions, 'buy')
-  const spotExitPrice = getWeightedAveragePrice(spotData.extractedTransactions, 'sell')
-  const notes: string[] = []
+  const primaryFuture = adjustedFuturesLegs[0] ?? null
+  if (!primaryFuture || primaryFuture.side !== 'short') {
+    return { entry: null, exit: null, notes: [] }
+  }
 
-  if (primaryFuture.entryPrice !== null && spotEntryPrice !== null) {
+  const spotEntryPrice =
+    manualPrices.spotBuyPrice ?? getWeightedAveragePrice(spotData.extractedTransactions, 'buy')
+  const spotExitPrice =
+    manualPrices.spotSellPrice ?? getWeightedAveragePrice(spotData.extractedTransactions, 'sell')
+  const entry = getSignedSpreadPercent(
+    spotEntryPrice,
+    primaryFuture.entryPrice,
+    spotEntryPrice !== null && primaryFuture.entryPrice !== null && spotEntryPrice < primaryFuture.entryPrice,
+  )
+  const exit = getSignedSpreadPercent(
+    spotExitPrice,
+    primaryFuture.exitPrice,
+    spotExitPrice !== null && primaryFuture.exitPrice !== null && spotExitPrice > primaryFuture.exitPrice,
+  )
+
+  return {
+    entry,
+    exit,
+    notes: createFuturesSpotSpreadNotes({
+      entry,
+      exit,
+      futuresEntry: primaryFuture.entryPrice,
+      spotBuy: spotEntryPrice,
+      spotSell: spotExitPrice,
+      futuresExit: primaryFuture.exitPrice,
+      manualPrices,
+    }),
+  }
+}
+
+function createFuturesSpotSpreadNotes({
+  entry,
+  exit,
+  futuresEntry,
+  spotBuy,
+  spotSell,
+  futuresExit,
+  manualPrices,
+}: {
+  entry: number | null
+  exit: number | null
+  futuresEntry: number | null
+  spotBuy: number | null
+  spotSell: number | null
+  futuresExit: number | null
+  manualPrices: ManualSpreadPrices
+}) {
+  const notes: string[] = []
+  const spotBuySource = manualPrices.spotBuyPrice !== null ? 'ручная цена' : 'средняя по spot buy'
+  const spotSellSource = manualPrices.spotSellPrice !== null ? 'ручная цена' : 'средняя по spot sell'
+
+  if (entry !== null && futuresEntry !== null && spotBuy !== null) {
     notes.push(
-      `Спред входа: ${formatNumber(primaryFuture.entryPrice - spotEntryPrice)} (futures entry - spot buy avg).`,
+      `Спред входа: ${formatNumber(entry)}% (${spotBuySource}: spot entry ${formatNumber(spotBuy)} ${getComparisonLabel(spotBuy, futuresEntry, 'ниже', 'выше')} futures entry ${formatNumber(futuresEntry)}).`,
     )
   }
 
-  if (primaryFuture.exitPrice !== null && spotExitPrice !== null) {
+  if (exit !== null && spotSell !== null && futuresExit !== null) {
     notes.push(
-      `Спред выхода: ${formatNumber(spotExitPrice - primaryFuture.exitPrice)} (spot sell avg - futures exit).`,
+      `Спред выхода: ${formatNumber(exit)}% (${spotSellSource}: spot exit ${formatNumber(spotSell)} ${getComparisonLabel(spotSell, futuresExit, 'выше', 'ниже')} futures exit ${formatNumber(futuresExit)}).`,
+    )
+  }
+
+  return notes
+}
+
+function createFuturesSpreadNotes({
+  entry,
+  exit,
+  longEntry,
+  shortEntry,
+  longExit,
+  shortExit,
+}: {
+  entry: number | null
+  exit: number | null
+  longEntry: number | null
+  shortEntry: number | null
+  longExit: number | null
+  shortExit: number | null
+}) {
+  const notes: string[] = []
+
+  if (entry !== null && longEntry !== null && shortEntry !== null) {
+    notes.push(
+      `Спред входа: ${formatNumber(entry)}% (long entry ${formatNumber(longEntry)} ${getComparisonLabel(longEntry, shortEntry, 'ниже', 'выше')} short entry ${formatNumber(shortEntry)}).`,
+    )
+  }
+
+  if (exit !== null && longExit !== null && shortExit !== null) {
+    notes.push(
+      `Спред выхода: ${formatNumber(exit)}% (long exit ${formatNumber(longExit)} ${getComparisonLabel(longExit, shortExit, 'выше', 'ниже')} short exit ${formatNumber(shortExit)}).`,
     )
   }
 
@@ -777,7 +955,8 @@ function getWeightedAveragePrice(transactions: RawTransaction[], type: 'buy' | '
       transaction.type === type &&
       transaction.amount !== null &&
       transaction.price !== null &&
-      transaction.amount > 0,
+      transaction.amount > 0 &&
+      isUsableOrderTotal(transaction),
   )
 
   if (matchingTransactions.length === 0) {
@@ -799,6 +978,77 @@ function getWeightedAveragePrice(transactions: RawTransaction[], type: 'buy' | '
       0,
     ) / totalAmount
   )
+}
+
+function getWeightedFuturesPrice(
+  legs: RawFuturesLeg[],
+  field: 'entryPrice' | 'exitPrice',
+) {
+  const weightedLegs = legs
+    .map((leg) => {
+      const price = leg[field]
+      if (price === null || price <= 0) {
+        return null
+      }
+
+      const weight = getFuturesPriceWeight(leg, price)
+      return weight !== null && weight > 0 ? { price, weight } : null
+    })
+    .filter((value): value is { price: number; weight: number } => value !== null)
+
+  if (weightedLegs.length === 0) {
+    return null
+  }
+
+  const totalWeight = weightedLegs.reduce((total, item) => total + item.weight, 0)
+  return weightedLegs.reduce((total, item) => total + item.price * item.weight, 0) / totalWeight
+}
+
+function getSignedSpreadPercent(
+  priceA: number | null,
+  priceB: number | null,
+  isPositive: boolean,
+) {
+  if (priceA === null || priceB === null || priceA <= 0 || priceB <= 0) {
+    return null
+  }
+
+  const averagePrice = (priceA + priceB) / 2
+  if (averagePrice === 0) {
+    return null
+  }
+
+  const magnitude = (Math.abs(priceA - priceB) / averagePrice) * 100
+  if (magnitude === 0) {
+    return 0
+  }
+
+  return isPositive ? magnitude : -magnitude
+}
+
+function getComparisonLabel(
+  priceA: number,
+  priceB: number,
+  lowerLabel: string,
+  higherLabel: string,
+) {
+  if (priceA === priceB) {
+    return 'равна'
+  }
+
+  return priceA < priceB ? lowerLabel : higherLabel
+}
+
+function getFuturesPriceWeight(leg: RawFuturesLeg, price: number) {
+  if (leg.coinAmount !== null && leg.coinAmount > 0) {
+    return Math.abs(leg.coinAmount)
+  }
+
+  if (leg.volumeUsdt !== null && leg.volumeUsdt > 0) {
+    return Math.abs(leg.volumeUsdt) / price
+  }
+
+  return null
 }
 
 function shouldIncludeSpotLeg(spotCalculation: SpotCalculation) {
@@ -952,6 +1202,87 @@ function parseManualSpotOverride(instructions: string): ManualSpotOverride | nul
     }
 
     return normalizeManualSpotAmount(parsedAmount, phrase, valueText)
+  }
+
+  if (hasSpotSummaryContext(normalizedInstructions)) {
+    const match = normalizedInstructions.match(spotSummaryPnlPattern)
+    const phrase = match?.groups?.phrase
+    const valueText = match?.groups?.value
+    const parsedAmount = valueText ? normalizeNumber(valueText) : null
+
+    if (phrase && valueText && parsedAmount !== null) {
+      return normalizeManualSpotAmount(parsedAmount, phrase, valueText)
+    }
+  }
+
+  return null
+}
+
+function hasSpotSummaryContext(instructions: string) {
+  return /(?:средн(?:яя|ей)?\s+цен(?:а|ы)\s+(?:покупки|продажи)|average\s+(?:buy|sell)\s+price|всего\s+задействовано|получено[^\n.;]{0,40}(?:потрачено|spent)|received[^\n.;]{0,40}spent)/iu.test(
+    instructions,
+  )
+}
+
+const manualPriceToken = '[+-]?(?:\\d[\\d\\s.,]*\\d|\\d)'
+
+export function parseManualSpreadPrices(instructions: string): ManualSpreadPrices {
+  const normalizedInstructions = instructions.trim()
+  if (!normalizedInstructions) {
+    return {
+      spotBuyPrice: null,
+      spotSellPrice: null,
+      spotVolumeUsdt: null,
+      spotRevenueUsdt: null,
+      spotCostUsdt: null,
+      futuresEntryPrice: null,
+      futuresExitPrice: null,
+    }
+  }
+
+  const explicitFuturesEntry = findManualPrice(normalizedInstructions, [
+    new RegExp(`(?:фьючерс(?:ная)?|futures?)?[^\\n.;]{0,50}(?:entry|open|вход(?:а|у)?|открытия)[^\\n.;:=-]{0,20}(?:[:=-]\\s*)?[^\\d+\\-]{0,12}(?<value>${manualPriceToken})`, 'iu'),
+  ])
+  const explicitFuturesExit = findManualPrice(normalizedInstructions, [
+    new RegExp(`(?:фьючерс(?:ная)?|futures?)?[^\\n.;]{0,50}(?:exit|close|выход(?:а|у)?|закрытия)[^\\n.;:=-]{0,20}(?:[:=-]\\s*)?[^\\d+\\-]{0,12}(?<value>${manualPriceToken})`, 'iu'),
+  ])
+  const genericBuy = findManualPrice(normalizedInstructions, [
+    new RegExp(`(?:средняя\\s+)?(?:цена\\s+)?(?:покупки|buy(?:ing)?)(?:\\s+price)?\\s*(?:[:=-]\\s*)?[^\\d+\\-]{0,12}(?<value>${manualPriceToken})`, 'iu'),
+    new RegExp(`(?:average\\s+buy\\s+price|buy\\s+average)\\s*(?:[:=-]\\s*)?[^\\d+\\-]{0,12}(?<value>${manualPriceToken})`, 'iu'),
+  ])
+  const genericSell = findManualPrice(normalizedInstructions, [
+    new RegExp(`(?:средняя\\s+)?(?:цена\\s+)?(?:продажи|sell(?:ing)?)(?:\\s+price)?\\s*(?:[:=-]\\s*)?[^\\d+\\-]{0,12}(?<value>${manualPriceToken})`, 'iu'),
+    new RegExp(`(?:average\\s+sell\\s+price|sell\\s+average)\\s*(?:[:=-]\\s*)?[^\\d+\\-]{0,12}(?<value>${manualPriceToken})`, 'iu'),
+  ])
+  const spotVolume = findManualPrice(normalizedInstructions, [
+    new RegExp(`(?:всего\\s+задействовано|total\\s+(?:involved|used|volume))[^\\n.;]{0,100}?(?<value>${manualPriceToken})`, 'iu'),
+  ])
+  const spotRevenue = findManualPrice(normalizedInstructions, [
+    new RegExp(`(?<value>${manualPriceToken})\\s*(?:usdt)?[^\\n.;]{0,16}(?:получено|received)`, 'iu'),
+  ])
+  const spotCost = findManualPrice(normalizedInstructions, [
+    new RegExp(`(?<value>${manualPriceToken})\\s*(?:usdt)?[^\\n.;]{0,16}(?:потрачено|spent)`, 'iu'),
+  ])
+
+  return {
+    spotBuyPrice: genericBuy,
+    spotSellPrice: genericSell,
+    spotVolumeUsdt: spotVolume,
+    spotRevenueUsdt: spotRevenue,
+    spotCostUsdt: spotCost,
+    futuresEntryPrice: explicitFuturesEntry,
+    futuresExitPrice: explicitFuturesExit,
+  }
+}
+
+function findManualPrice(instructions: string, patterns: RegExp[]) {
+  for (const pattern of patterns) {
+    const match = instructions.match(pattern)
+    const valueText = match?.groups?.value
+    const value = valueText ? normalizeNumber(valueText) : null
+    if (value !== null && value > 0) {
+      return value
+    }
   }
 
   return null
@@ -1253,6 +1584,6 @@ function formatUsdt(value: number) {
 function formatNumber(value: number) {
   return new Intl.NumberFormat('ru-RU', {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 6,
+    maximumFractionDigits: 8,
   }).format(value)
 }

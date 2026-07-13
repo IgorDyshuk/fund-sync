@@ -6,6 +6,7 @@ import type { AppStatus, ConflictDraft } from "../types/app";
 import { cn } from "../utils/cn";
 import { ConflictReview } from "./ConflictReview";
 import { ResultDashboard } from "./ResultDashboard";
+import { SpotSignPrompt } from "./SpotSignPrompt";
 import { TradeInputPanel } from "./TradeInputPanel";
 
 const mobileResultRevealClass =
@@ -31,6 +32,8 @@ type AnalyzeSheetProps = {
   onApplyConflicts: () => void;
   onDone: () => void;
   onRetry: () => void;
+  spotSignPromptOpen: boolean;
+  onSpotSignSelect: (sign: "positive" | "negative") => void;
 };
 
 export function AnalyzeSheet({
@@ -52,6 +55,8 @@ export function AnalyzeSheet({
   onApplyConflicts,
   onDone,
   onRetry,
+  spotSignPromptOpen,
+  onSpotSignSelect,
 }: AnalyzeSheetProps) {
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -62,7 +67,9 @@ export function AnalyzeSheet({
   const showRetryAction = status === "error";
   const showFooterActions = showDoneActions || showRetryAction;
   const showResultPanel =
-    status === "review" || status === "result" || Boolean(resultAnalysis);
+    (status === "review" && Boolean(analysis?.conflicts.length)) ||
+    status === "result" ||
+    Boolean(resultAnalysis);
 
   useEffect(() => {
     if (status !== "result" || !showResultPanel) {
@@ -387,6 +394,13 @@ export function AnalyzeSheet({
           </div>
         </section>
       </div>
+
+      {spotSignPromptOpen ? (
+        <SpotSignPrompt
+          amount={analysis?.spot.rawPnlUsdt}
+          onSelect={onSpotSignSelect}
+        />
+      ) : null}
     </div>
   );
 }

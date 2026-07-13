@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateTrade, formatUsdt } from './tradeCalculator'
+import { calculateTrade, formatSpread, formatUsdt } from './tradeCalculator'
 
 describe('calculateTrade', () => {
   it('makes spot PnL negative when futures position closes positive', () => {
@@ -26,13 +26,22 @@ describe('calculateTrade', () => {
     const result = calculateTrade({
       future: { volumeUsdt: 1550, realizedPnlUsdt: 62.54 },
       spot: { volumeUsdt: 1550, rawPnlUsdt: 15.54 },
+      spread: { entry: 3.125, exit: -1.0101 },
     })
 
     expect(result.netResult).toBeCloseTo(47)
     expect(result.display.futuresVolume).toBe('1 550,00 USDT')
     expect(result.display.spotVolume).toBe('1 550,00 USDT')
     expect(result.display.totalVolume).toBe('3 100,00 USDT')
+    expect(result.spreadEntry).toBeCloseTo(3.125)
+    expect(result.spreadExit).toBeCloseTo(-1.0101)
+    expect(result.display.spreadEntry).toBe('3,125%')
+    expect(result.display.spreadExit).toBe('-1,0101%')
     expect(result.display.netResult).toBe('47,00 USDT')
+  })
+
+  it('formats missing spread as a dash', () => {
+    expect(formatSpread(null)).toBe('-')
   })
 
   it('shows total volume as missing when one side volume is missing', () => {

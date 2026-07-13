@@ -23,6 +23,11 @@ export type SpotSnapshot = {
   costUsdt?: number | null
 }
 
+export type SpreadSnapshot = {
+  entry?: number | null
+  exit?: number | null
+}
+
 export type TradeLegSnapshot = {
   id?: string | null
   label?: string | null
@@ -46,6 +51,7 @@ export type TradeLegSnapshot = {
 export type TradeAnalysisInput = {
   future: FutureSnapshot
   spot?: SpotSnapshot | null
+  spread?: SpreadSnapshot | null
   legs?: TradeLegSnapshot[] | null
   bundleType?: string | null
 }
@@ -79,6 +85,8 @@ export type TradeCalculation = {
   futuresPnl: number | null
   rawSpotPnl: number | null
   signedSpotPnl: number | null
+  spreadEntry: number | null
+  spreadExit: number | null
   netResult: number | null
   isProfitable: boolean | null
   display: {
@@ -88,6 +96,8 @@ export type TradeCalculation = {
     futuresPnl: string
     spotPnl: string
     rawSpotPnl: string
+    spreadEntry: string
+    spreadExit: string
     netResult: string
     bundleType: string
   }
@@ -213,6 +223,8 @@ export function calculateTrade(input: TradeAnalysisInput): TradeCalculation {
   const signedSpotPnl = sumComplete(spotLegs.map((leg) => leg.pnl))
   const rawSpotPnl = getRawSpotPnl(input.spot)
   const netResult = legs.length >= 2 ? sumComplete(legs.map((leg) => leg.pnl)) : null
+  const spreadEntry = getNumber(input.spread?.entry)
+  const spreadExit = getNumber(input.spread?.exit)
   const bundleType = getBundleType(legs, input.bundleType)
 
   return {
@@ -227,6 +239,8 @@ export function calculateTrade(input: TradeAnalysisInput): TradeCalculation {
     futuresPnl,
     rawSpotPnl,
     signedSpotPnl,
+    spreadEntry,
+    spreadExit,
     netResult,
     isProfitable: netResult === null ? null : netResult >= 0,
     display: {
@@ -236,6 +250,8 @@ export function calculateTrade(input: TradeAnalysisInput): TradeCalculation {
       futuresPnl: formatUsdt(futuresPnl),
       spotPnl: formatUsdt(signedSpotPnl),
       rawSpotPnl: formatUsdt(rawSpotPnl),
+      spreadEntry: formatSpread(spreadEntry),
+      spreadExit: formatSpread(spreadExit),
       netResult: formatUsdt(netResult),
       bundleType,
     },
@@ -603,6 +619,18 @@ export function formatPercent(value: number | null | undefined): string {
   return `${new Intl.NumberFormat('ru-RU', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
+  }).format(normalized)}%`
+}
+
+export function formatSpread(value: number | null | undefined): string {
+  const normalized = getNumber(value)
+  if (normalized === null) {
+    return '-'
+  }
+
+  return `${new Intl.NumberFormat('ru-RU', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
   }).format(normalized)}%`
 }
 

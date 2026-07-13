@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   applyManualInstructionsToAnalysis,
+  applyManualSpotSign,
   parseManualSpotOverride,
+  parseManualSpotSummary,
 } from "./manualInstructions";
 import { calculateTrade } from "./tradeCalculator";
 import type { AnalysisResponse } from "./analysisSchema";
@@ -87,6 +89,24 @@ describe("parseManualSpotOverride", () => {
     });
   });
 
+  it("marks an unsigned Spot result for confirmation", () => {
+    expect(parseManualSpotOverride("Spot вышел 10 USDT")).toEqual({
+      amount: 10,
+      mode: "raw",
+    });
+  });
+
+  it("does not require confirmation when the sign is explicit", () => {
+    expect(parseManualSpotOverride("Spot вышел +10 USDT")).toEqual({
+      amount: 10,
+      mode: "signed",
+    });
+    expect(parseManualSpotOverride("Spot вышел -10 USDT")).toEqual({
+      amount: -10,
+      mode: "signed",
+    });
+  });
+
   it("parses signed spot amount when sign is explicit", () => {
     expect(parseManualSpotOverride("итог по споту -15,54")).toEqual({
       amount: -15.54,
@@ -102,6 +122,36 @@ describe("parseManualSpotOverride", () => {
     expect(parseManualSpotOverride("спот плюс 15,54")).toEqual({
       amount: 15.54,
       mode: "signed",
+    });
+  });
+
+  it("parses an explicitly positive spot result in short instructions", () => {
+    expect(parseManualSpotOverride("спот: +16,9 USDT")).toEqual({
+      amount: 16.9,
+      mode: "signed",
+    });
+  });
+
+  it("parses a positive PNL from a spot summary without the word spot", () => {
+    expect(
+      parseManualSpotOverride(
+        "PNL (Прибыль): +10.13145 USDT (172.455 USDT получено минус 162.32355 USDT потрачено)\nВсего задействовано USDT (сумма покупок): 162.32355 USDT\nСредняя цена покупки: 0.002162 USDT\nСредняя цена продажи: 0.002299 USDT",
+      ),
+    ).toEqual({
+      amount: 10.13145,
+      mode: "signed",
+    });
+  });
+
+  it("parses involved volume, received amount, and spent amount from a spot summary", () => {
+    expect(
+      parseManualSpotSummary(
+        "PNL: +10.13145 USDT (172.455 USDT получено минус 162.32355 USDT потрачено)\nВсего задействовано USDT (сумма покупок): 162.32355 USDT",
+      ),
+    ).toEqual({
+      volumeUsdt: 162.32355,
+      revenueUsdt: 172.455,
+      costUsdt: 162.32355,
     });
   });
 });
@@ -132,5 +182,21 @@ describe("applyManualInstructionsToAnalysis", () => {
     expect(patchedAnalysis.spot.pnlUsdt).toBeCloseTo(15.54);
     expect(result.signedSpotPnl).toBeCloseTo(15.54);
     expect(result.netResult).toBeCloseTo(78.08);
+  });
+
+  it("applies the selected sign to an unsigned spot amount", () => {
+    const rawAnalysis = applyManualInstructionsToAnalysis(
+      baseAnalysis,
+      "Spot вышел 10 USDT",
+    );
+    const positiveAnalysis = applyManualSpotSign(rawAnalysis, "positive");
+    const negativeAnalysis = applyManualSpotSign(rawAnalysis, "negative");
+
+    expect(positiveAnalysis.spot.rawPnlUsdt).toBe(10);
+    expect(positiveAnalysis.spot.pnlUsdt).toBe(10);
+    expect(positiveAnalysis.legs[1].pnlUsdt).toBe(10);
+    expect(negativeAnalysis.spot.rawPnlUsdt).toBe(10);
+    expect(negativeAnalysis.spot.pnlUsdt).toBe(-10);
+    expect(negativeAnalysis.legs[1].pnlUsdt).toBe(-10);
   });
 });

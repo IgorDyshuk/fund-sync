@@ -189,21 +189,68 @@ function VolumeSummary({ calculation }: { calculation: TradeCalculation }) {
     <section className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5 xl:flex xl:min-h-[158px] xl:flex-[0_0_430px] xl:flex-col xl:p-4">
       <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-white xl:mb-3 xl:gap-2.5 xl:text-lg">
         <BarChart3 className="h-4 w-4 text-emerald-300 xl:h-6 xl:w-6" />
-        Задействовано USDT
+        Краткая сводка
       </div>
       <div className="grid min-w-0 grid-cols-3 gap-1.5 xl:min-h-0 xl:flex-1 xl:grid-cols-[repeat(3,minmax(0,1fr))] xl:items-stretch xl:gap-2.5">
         <VolumeCell
-          label="Всего"
+          label="Общий объем"
           value={calculation.display.totalVolume}
           primary
         />
-        <VolumeCell
-          label="Фьючерсы"
-          value={calculation.display.futuresVolume}
+        <SpreadCell
+          label="Спред входа"
+          value={calculation.display.spreadEntry}
+          numericValue={calculation.spreadEntry}
         />
-        <VolumeCell label="Спот" value={calculation.display.spotVolume} />
+        <SpreadCell
+          label="Спред выхода"
+          value={calculation.display.spreadExit}
+          numericValue={calculation.spreadExit}
+        />
       </div>
     </section>
+  );
+}
+
+function SpreadCell({
+  label,
+  value,
+  numericValue,
+}: {
+  label: string;
+  value: string;
+  numericValue: number | null;
+}) {
+  const tone = numberTone(numericValue);
+
+  return (
+    <div
+      className={cn(
+        "min-w-0 rounded-md border px-2 py-1.5 xl:flex xl:h-full xl:min-h-0 xl:flex-col xl:justify-center xl:rounded-lg xl:px-3 xl:py-3",
+        tone === "positive"
+          ? "border-emerald-300/30 bg-emerald-300/[0.07]"
+          : tone === "negative"
+            ? "border-red-300/30 bg-red-400/[0.07]"
+            : "border-white/10 bg-white/[0.03]",
+      )}
+    >
+      <div className="truncate text-[10px] font-medium uppercase text-[#8a93a0] xl:text-[11px]">
+        {label}
+      </div>
+      <div
+        className={cn(
+          "mt-0.5 min-w-0 break-words text-[11px] font-semibold leading-tight xl:mt-1.5 xl:whitespace-nowrap xl:text-[clamp(0.82rem,0.72vw,0.96rem)]",
+          tone === "positive"
+            ? "text-emerald-100"
+            : tone === "negative"
+              ? "text-red-100"
+              : "text-white",
+        )}
+        title={value}
+      >
+        {value}
+      </div>
+    </div>
   );
 }
 

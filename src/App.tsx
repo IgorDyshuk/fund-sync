@@ -11,7 +11,11 @@ import {
   type TradeAnalysisInput,
   type TradeCalculation,
 } from "./lib/tradeCalculator";
-import { applyManualInstructionsToAnalysis } from "./lib/manualInstructions";
+import {
+  applyManualInstructionsToAnalysis,
+  applyManualSpotSign,
+  parseManualSpotOverride,
+} from "./lib/manualInstructions";
 import { loadTradeHistory, saveTradeHistory } from "./lib/tradeHistory";
 import type { AppStatus, ConflictDraft, SavedTrade } from "./types/app";
 import { isAnalyzeTimeout, postAnalyze, readApiError } from "./utils/api";
@@ -35,6 +39,7 @@ function App() {
     Record<string, ConflictDraft>
   >({});
   const [error, setError] = useState<string | null>(null);
+  const [spotSignPromptOpen, setSpotSignPromptOpen] = useState(false);
 
   const calculation = useMemo<TradeCalculation | null>(() => {
     if (!resultAnalysis) {
@@ -120,12 +125,20 @@ function App() {
       nextAnalysis,
       instructions,
     );
+    const needsSpotSign = parseManualSpotOverride(instructions)?.mode === "raw";
 
     setAnalysis(patchedAnalysis);
     setError(null);
 
     if (patchedAnalysis.conflicts.length > 0) {
       setConflictDrafts(createInitialConflictDrafts(patchedAnalysis.conflicts));
+      setSpotSignPromptOpen(false);
+      setStatus("review");
+      return;
+    }
+
+    if (needsSpotSign) {
+      setSpotSignPromptOpen(true);
       setStatus("review");
       return;
     }
@@ -140,9 +153,31 @@ function App() {
     }
 
     const patchedAnalysis = applyConflictDrafts(analysis, conflictDrafts);
-    setResultAnalysis(
-      applyManualInstructionsToAnalysis(patchedAnalysis, instructions),
+    const nextAnalysis = applyManualInstructionsToAnalysis(
+      patchedAnalysis,
+      instructions,
     );
+    setAnalysis(nextAnalysis);
+    if (parseManualSpotOverride(instructions)?.mode === "raw") {
+      setSpotSignPromptOpen(true);
+      setStatus("review");
+      return;
+    }
+
+    setResultAnalysis(nextAnalysis);
+    setStatus("result");
+    setError(null);
+  }
+
+  function applySpotSign(sign: "positive" | "negative") {
+    if (!analysis) {
+      return;
+    }
+
+    const nextAnalysis = applyManualSpotSign(analysis, sign);
+    setAnalysis(nextAnalysis);
+    setResultAnalysis(nextAnalysis);
+    setSpotSignPromptOpen(false);
     setStatus("result");
     setError(null);
   }
@@ -175,6 +210,7 @@ function App() {
     setAnalysis(null);
     setResultAnalysis(null);
     setConflictDrafts({});
+    setSpotSignPromptOpen(false);
     setError(null);
     void analyzeTrade();
   }
@@ -187,6 +223,7 @@ function App() {
     setAnalysis(null);
     setResultAnalysis(null);
     setConflictDrafts({});
+    setSpotSignPromptOpen(false);
     setError(null);
   }
 
@@ -221,6 +258,8 @@ function App() {
           onApplyConflicts={applyConflicts}
           onDone={completeTrade}
           onRetry={retryAnalysis}
+          spotSignPromptOpen={spotSignPromptOpen}
+          onSpotSignSelect={applySpotSign}
         />
       ) : null}
     </>

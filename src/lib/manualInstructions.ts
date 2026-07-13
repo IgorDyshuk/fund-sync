@@ -6,11 +6,25 @@ type ManualSpotOverride = {
   mode: "raw" | "signed";
 };
 
+export type ManualSpotSign = "positive" | "negative";
+
+export type ManualSpotSummary = {
+  volumeUsdt: number | null;
+  revenueUsdt: number | null;
+  costUsdt: number | null;
+};
+
 const spotPnlPatterns = [
-  /(?<phrase>(?:спот|spot)[^\n.;]{0,80}?(?:pnl|пнл|итог|результат|считать|плюс|минус|прибыл\p{L}*|убыт\p{L}*)[^\n.;]{0,30}?(?<value>[+-]?\s*\d[\d\s.,]*))/iu,
+  /(?<phrase>(?:спот|spot)[^\n.;]{0,80}?)(?<value>[+-]\s*\d[\d\s.,]*)/iu,
+  /(?<phrase>(?:спот|spot)[^\n.;]{0,80}?(?:pnl|пнл|итог|результат|считать|вышел\p{L}*|вышло|получил\p{L}*|плюс|минус|прибыл\p{L}*|убыт\p{L}*)[^\n.;]{0,30}?(?<value>[+-]?\s*\d[\d\s.,]*))/iu,
   /(?<phrase>(?:pnl|пнл|итог|результат|плюс|минус|прибыл\p{L}*|убыт\p{L}*)[^\n.;]{0,50}?(?:по\s+)?(?:спот|spot)[^\n.;]{0,30}?(?<value>[+-]?\s*\d[\d\s.,]*))/iu,
   /(?<phrase>(?:spot\s+pnl|pnl\s+spot)[^\n.;]{0,30}?(?<value>[+-]?\s*\d[\d\s.,]*))/iu,
 ];
+
+const spotSummaryPnlPattern =
+  /(?:^|\n)\s*(?:[-*]\s*)?(?<phrase>(?:pnl|пнл|profit|прибыл\p{L}*|результат)(?:\s*\([^\n)]*\))?)[^\n.;:]{0,20}[:=]\s*(?<value>[+-]?\s*\d[\d\s.,]*)/iu;
+
+const manualSummaryNumber = "[+-]?(?:\\d[\\d\\s.,]*\\d|\\d)";
 
 export function parseManualSpotOverride(
   instructions: string,
@@ -36,7 +50,24 @@ export function parseManualSpotOverride(
     return normalizeManualSpotAmount(parsedAmount, phrase, valueText);
   }
 
+  if (hasSpotSummaryContext(normalizedInstructions)) {
+    const match = normalizedInstructions.match(spotSummaryPnlPattern);
+    const phrase = match?.groups?.phrase;
+    const valueText = match?.groups?.value;
+    const parsedAmount = valueText ? parseNumericValue(valueText) : null;
+
+    if (phrase && valueText && parsedAmount !== null) {
+      return normalizeManualSpotAmount(parsedAmount, phrase, valueText);
+    }
+  }
+
   return null;
+}
+
+function hasSpotSummaryContext(instructions: string) {
+  return /(?:средн(?:яя|ей)?\s+цен(?:а|ы)\s+(?:покупки|продажи)|average\s+(?:buy|sell)\s+price|всего\s+задействовано|получено[^\n.;]{0,40}(?:потрачено|spent)|received[^\n.;]{0,40}spent)/iu.test(
+    instructions,
+  );
 }
 
 export function applyManualInstructionsToAnalysis(
@@ -44,20 +75,22 @@ export function applyManualInstructionsToAnalysis(
   instructions: string,
 ): AnalysisResponse {
   const spotOverride = parseManualSpotOverride(instructions);
-  if (!spotOverride) {
+  const spotSummary = parseManualSpotSummary(instructions);
+  if (!spotOverride && !hasManualSpotSummary(spotSummary)) {
     return analysis;
   }
 
   const nextAnalysis: AnalysisResponse = structuredClone(analysis);
-  const rawPnlUsdt = Math.abs(spotOverride.amount);
+  const rawPnlUsdt = spotOverride ? Math.abs(spotOverride.amount) : null;
   const signedPnlUsdt =
-    spotOverride.mode === "signed" ? spotOverride.amount : null;
+    spotOverride?.mode === "signed" ? spotOverride.amount : null;
 
   nextAnalysis.spot = {
     ...nextAnalysis.spot,
-    method: "manual",
-    rawPnlUsdt,
-    pnlUsdt: signedPnlUsdt,
+    ...(spotOverride ? { method: "manual", rawPnlUsdt, pnlUsdt: signedPnlUsdt } : {}),
+    volumeUsdt: spotSummary.volumeUsdt ?? nextAnalysis.spot.volumeUsdt,
+    revenueUsdt: spotSummary.revenueUsdt ?? nextAnalysis.spot.revenueUsdt,
+    costUsdt: spotSummary.costUsdt ?? nextAnalysis.spot.costUsdt,
   };
 
   const spotLegIndex = nextAnalysis.legs.findIndex(
@@ -68,9 +101,12 @@ export function applyManualInstructionsToAnalysis(
     const currentSpotLeg = nextAnalysis.legs[spotLegIndex];
     nextAnalysis.legs[spotLegIndex] = {
       ...currentSpotLeg,
-      method: "manual",
-      rawPnlUsdt,
-      pnlUsdt: signedPnlUsdt,
+      ...(spotOverride
+        ? { method: "manual", rawPnlUsdt, pnlUsdt: signedPnlUsdt }
+        : {}),
+      volumeUsdt: spotSummary.volumeUsdt ?? currentSpotLeg.volumeUsdt,
+      revenueUsdt: spotSummary.revenueUsdt ?? currentSpotLeg.revenueUsdt,
+      costUsdt: spotSummary.costUsdt ?? currentSpotLeg.costUsdt,
     };
   } else if (nextAnalysis.legs.length > 0) {
     nextAnalysis.legs.push({
@@ -84,7 +120,7 @@ export function applyManualInstructionsToAnalysis(
       side: "unknown",
       startedAt: null,
       endedAt: null,
-      volumeUsdt: nextAnalysis.spot.volumeUsdt ?? null,
+      volumeUsdt: spotSummary.volumeUsdt ?? nextAnalysis.spot.volumeUsdt ?? null,
       pnlUsdt: signedPnlUsdt,
       realizedPnlUsdt: null,
       rawPnlUsdt,
@@ -92,8 +128,8 @@ export function applyManualInstructionsToAnalysis(
       method: "manual",
       balanceBeforeUsdt: null,
       balanceAfterUsdt: null,
-      revenueUsdt: null,
-      costUsdt: null,
+      revenueUsdt: spotSummary.revenueUsdt,
+      costUsdt: spotSummary.costUsdt,
     });
   }
 
@@ -103,6 +139,79 @@ export function applyManualInstructionsToAnalysis(
       (conflict) => !isManualSpotConflict(conflict.field),
     ),
   };
+}
+
+export function applyManualSpotSign(
+  analysis: AnalysisResponse,
+  sign: ManualSpotSign,
+): AnalysisResponse {
+  const nextAnalysis: AnalysisResponse = structuredClone(analysis);
+  const rawPnlUsdt = nextAnalysis.spot.rawPnlUsdt;
+  const signedPnlUsdt =
+    rawPnlUsdt === null || rawPnlUsdt === undefined
+      ? null
+      : sign === "positive"
+        ? Math.abs(rawPnlUsdt)
+        : -Math.abs(rawPnlUsdt);
+
+  nextAnalysis.spot = {
+    ...nextAnalysis.spot,
+    method: "manual",
+    pnlUsdt: signedPnlUsdt,
+  };
+
+  const spotLegIndex = nextAnalysis.legs.findIndex(
+    (leg) => leg.type === "spot",
+  );
+
+  if (spotLegIndex >= 0) {
+    nextAnalysis.legs[spotLegIndex] = {
+      ...nextAnalysis.legs[spotLegIndex],
+      method: "manual",
+      pnlUsdt: signedPnlUsdt,
+    };
+  }
+
+  return nextAnalysis;
+}
+
+export function parseManualSpotSummary(instructions: string): ManualSpotSummary {
+  return {
+    volumeUsdt: findManualSummaryNumber(instructions, [
+      new RegExp(
+        `(?:всего\\s+задействовано|total\\s+(?:involved|used|volume))[^\\n.;]{0,100}?(?<value>${manualSummaryNumber})`,
+        "iu",
+      ),
+    ]),
+    revenueUsdt: findManualSummaryNumber(instructions, [
+      new RegExp(
+        `(?<value>${manualSummaryNumber})\\s*(?:usdt)?[^\\n.;]{0,16}(?:получено|received)`,
+        "iu",
+      ),
+    ]),
+    costUsdt: findManualSummaryNumber(instructions, [
+      new RegExp(
+        `(?<value>${manualSummaryNumber})\\s*(?:usdt)?[^\\n.;]{0,16}(?:потрачено|spent)`,
+        "iu",
+      ),
+    ]),
+  };
+}
+
+function findManualSummaryNumber(instructions: string, patterns: RegExp[]) {
+  for (const pattern of patterns) {
+    const valueText = instructions.match(pattern)?.groups?.value;
+    const value = valueText ? parseNumericValue(valueText) : null;
+    if (value !== null && value > 0) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function hasManualSpotSummary(summary: ManualSpotSummary) {
+  return Object.values(summary).some((value) => value !== null);
 }
 
 function normalizeManualSpotAmount(
