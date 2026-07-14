@@ -19,7 +19,8 @@ export default defineConfig(({ mode }) => {
   return {
     base,
     server: {
-      allowedHosts: ['.ngrok-free.app'],
+      // ngrok generates a new subdomain on each tunnel restart.
+      allowedHosts: true,
     },
     plugins: [analyzeApiPlugin(runtimeEnv), react(), tailwindcss()],
   }

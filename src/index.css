@@ -16,16 +16,24 @@
 }
 
 html {
+  height: 100%;
   min-width: 320px;
+  overflow: hidden;
   background: #08090d;
 }
 
 body {
+  height: 100%;
   min-width: 320px;
-  min-height: 100vh;
   margin: 0;
+  overflow: hidden;
   background: #08090d;
   color: #e7e9ee;
+}
+
+#root {
+  height: 100%;
+  overflow: hidden;
 }
 
 button,

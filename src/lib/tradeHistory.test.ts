@@ -24,6 +24,26 @@ describe("tradeHistory", () => {
     expect(parseTradeHistory(JSON.stringify({ items: [] }))).toEqual([]);
   });
 
+  it("filters malformed records instead of restoring unsafe objects", () => {
+    const valid = createSavedTrade();
+    const raw = JSON.stringify([
+      valid,
+      { ...valid, id: 42 },
+      { ...valid, analysis: {} },
+      { ...valid, calculation: {} },
+      null,
+    ]);
+
+    expect(parseTradeHistory(raw)).toEqual([valid]);
+  });
+
+  it("accepts a legacy analysis without the optional spread field", () => {
+    const trade = createSavedTrade();
+    delete (trade.analysis as { spread?: unknown }).spread;
+
+    expect(parseTradeHistory(JSON.stringify([trade]))).toEqual([trade]);
+  });
+
   it("does not throw when storage is unavailable", () => {
     const storage = {
       getItem() {

@@ -1,6 +1,9 @@
 import { useMemo, useRef, useState } from "react";
 import { AnalyzeSheet } from "./components/AnalyzeSheet";
+import { FloatingAddButton } from "./components/FloatingAddButton";
+import { HistoryPage } from "./components/HistoryPage";
 import { HomePage } from "./components/HomePage";
+import { TradeDetailsSheet } from "./components/TradeDetailsSheet";
 import { analysisResponseSchema, type AnalysisResponse } from "./lib/analysisSchema";
 import {
   applyConflictDrafts,
@@ -16,14 +19,20 @@ import {
   applyManualSpotSign,
   parseManualSpotOverride,
 } from "./lib/manualInstructions";
+import {
+  prependSavedTrade,
+  removeSavedTrade,
+} from "./lib/tradeHistoryActions";
 import { loadTradeHistory, saveTradeHistory } from "./lib/tradeHistory";
 import type { AppStatus, ConflictDraft, SavedTrade } from "./types/app";
 import { isAnalyzeTimeout, postAnalyze, readApiError } from "./utils/api";
+import { cn } from "./utils/cn";
 
 const sheetAnimationMs = 300;
 
 function App() {
   const closeTimerRef = useRef<number | null>(null);
+  const detailCloseTimerRef = useRef<number | null>(null);
   const requestTokenRef = useRef(0);
   const [history, setHistory] = useState<SavedTrade[]>(() => loadTradeHistory());
   const [isSheetMounted, setIsSheetMounted] = useState(false);
@@ -40,6 +49,10 @@ function App() {
   >({});
   const [error, setError] = useState<string | null>(null);
   const [spotSignPromptOpen, setSpotSignPromptOpen] = useState(false);
+  const [selectedTrade, setSelectedTrade] = useState<SavedTrade | null>(null);
+  const [isDetailsMounted, setIsDetailsMounted] = useState(false);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isHistoryPage, setIsHistoryPage] = useState(false);
 
   const calculation = useMemo<TradeCalculation | null>(() => {
     if (!resultAnalysis) {
@@ -55,6 +68,31 @@ function App() {
     clearCloseTimer();
     setIsSheetMounted(true);
     window.requestAnimationFrame(() => setIsSheetOpen(true));
+  }
+
+  function openTradeDetails(trade: SavedTrade) {
+    clearDetailCloseTimer();
+    setSelectedTrade(trade);
+    setIsDetailsMounted(true);
+    window.requestAnimationFrame(() => setIsDetailsOpen(true));
+  }
+
+  function closeTradeDetails() {
+    clearDetailCloseTimer();
+    setIsDetailsOpen(false);
+    detailCloseTimerRef.current = window.setTimeout(() => {
+      setIsDetailsMounted(false);
+      setSelectedTrade(null);
+    }, sheetAnimationMs);
+  }
+
+  function deleteTrade(tradeId: string) {
+    setHistory((currentHistory) => {
+      const nextHistory = removeSavedTrade(currentHistory, tradeId);
+      saveTradeHistory(nextHistory);
+      return nextHistory;
+    });
+    closeTradeDetails();
   }
 
   function closeAnalyzeSheet() {
@@ -196,7 +234,7 @@ function App() {
     };
 
     setHistory((currentHistory) => {
-      const nextHistory = [savedTrade, ...currentHistory];
+      const nextHistory = prependSavedTrade(currentHistory, savedTrade);
       saveTradeHistory(nextHistory);
       return nextHistory;
     });
@@ -234,9 +272,55 @@ function App() {
     }
   }
 
+  function clearDetailCloseTimer() {
+    if (detailCloseTimerRef.current !== null) {
+      window.clearTimeout(detailCloseTimerRef.current);
+      detailCloseTimerRef.current = null;
+    }
+  }
+
   return (
-    <>
-      <HomePage history={history} onCreateTrade={openAnalyzeSheet} />
+    <div className="relative h-[100svh] overflow-hidden">
+      <div
+        className={cn(
+          "h-[100svh] transform-gpu transition-transform duration-300 ease-out",
+          isHistoryPage
+            ? "pointer-events-none -translate-x-full overflow-y-hidden"
+            : "translate-x-0 overflow-y-auto",
+        )}
+      >
+        <HomePage
+          history={history}
+          onOpenHistory={() => setIsHistoryPage(true)}
+          onTradeSelect={openTradeDetails}
+        />
+      </div>
+
+      <div
+        className={cn(
+          "absolute inset-0 h-[100svh] transform-gpu transition-transform duration-300 ease-out",
+          isHistoryPage
+            ? "pointer-events-auto translate-x-0 overflow-y-auto"
+            : "pointer-events-none translate-x-full overflow-y-hidden",
+        )}
+      >
+        <HistoryPage
+          history={history}
+          onBack={() => setIsHistoryPage(false)}
+          onTradeSelect={openTradeDetails}
+        />
+      </div>
+
+      <FloatingAddButton onClick={openAnalyzeSheet} />
+
+      {isDetailsMounted && selectedTrade ? (
+        <TradeDetailsSheet
+          trade={selectedTrade}
+          isOpen={isDetailsOpen}
+          onClose={closeTradeDetails}
+          onDelete={() => deleteTrade(selectedTrade.id)}
+        />
+      ) : null}
 
       {isSheetMounted ? (
         <AnalyzeSheet
@@ -262,7 +346,7 @@ function App() {
           onSpotSignSelect={applySpotSign}
         />
       ) : null}
-    </>
+    </div>
   );
 }
 
