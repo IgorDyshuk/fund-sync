@@ -224,6 +224,70 @@ describe("trade details interactions", () => {
 });
 
 describe("analyzer close confirmation", () => {
+  it("shows and allows saving a result with only one short position", () => {
+    const analysis: AnalysisResponse = {
+      bundleType: "Фьючерс",
+      legs: [
+        {
+          id: "future-short",
+          label: "Short BTCUSDT",
+          type: "futures",
+          symbol: "BTCUSDT",
+          side: "short",
+          startedAt: "15.07.2026 10:00",
+          endedAt: "15.07.2026 11:30",
+          volumeUsdt: 750,
+          pnlUsdt: -18.42,
+          realizedPnlUsdt: -18.42,
+        },
+      ],
+      future: {
+        symbol: "BTCUSDT",
+        side: "short",
+        startedAt: "15.07.2026 10:00",
+        endedAt: "15.07.2026 11:30",
+        volumeUsdt: 750,
+        realizedPnlUsdt: -18.42,
+      },
+      spot: {},
+      conflicts: [],
+      confidence: 0.98,
+      notes: [],
+    };
+    const calculation = calculateTrade(analysis);
+    const onDone = vi.fn();
+
+    render(
+      <AnalyzeSheet
+        isOpen
+        files={[]}
+        instructions=""
+        status="result"
+        error={null}
+        analysis={analysis}
+        resultAnalysis={analysis}
+        calculation={calculation}
+        conflictDrafts={{}}
+        onClose={() => undefined}
+        onFilesChange={() => undefined}
+        onInstructionsChange={() => undefined}
+        onAnalyze={() => undefined}
+        onReset={() => undefined}
+        onDraftsChange={() => undefined}
+        onApplyConflicts={() => undefined}
+        onDone={onDone}
+        onRetry={() => undefined}
+        spotSignPromptOpen={false}
+        onSpotSignSelect={() => undefined}
+      />,
+    );
+
+    expect(screen.getAllByText("-18,42 USDT").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("750,00 USDT")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Готово" }));
+    expect(onDone).toHaveBeenCalledOnce();
+  });
+
   it("offers save, discard and stay actions after a result is ready", () => {
     const analysis = createTrade("analyzer", "BTCUSDT", 20).analysis;
     const calculation = calculateTrade(analysis);

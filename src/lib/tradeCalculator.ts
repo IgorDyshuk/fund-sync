@@ -183,7 +183,7 @@ export function getSpotVolume(spot?: SpotSnapshot | null): number | null {
 export function getTotalVolume(legs: TradeLegCalculation[]): number | null {
   const volumes = legs.map((leg) => getNumber(leg.volume))
 
-  if (volumes.length < 2 || volumes.some((volume) => volume === null)) {
+  if (volumes.length === 0 || volumes.some((volume) => volume === null)) {
     return null
   }
 
@@ -222,7 +222,7 @@ export function calculateTrade(input: TradeAnalysisInput): TradeCalculation {
   const futuresPnl = sumComplete(futuresLegs.map((leg) => leg.pnl))
   const signedSpotPnl = sumComplete(spotLegs.map((leg) => leg.pnl))
   const rawSpotPnl = getRawSpotPnl(input.spot)
-  const netResult = legs.length >= 2 ? sumComplete(legs.map((leg) => leg.pnl)) : null
+  const netResult = legs.length > 0 ? sumComplete(legs.map((leg) => leg.pnl)) : null
   const spreadEntry = getNumber(input.spread?.entry)
   const spreadExit = getNumber(input.spread?.exit)
   const bundleType = getBundleType(legs, input.bundleType)

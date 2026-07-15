@@ -107,7 +107,12 @@ export function ResultDashboard({
           <div className="grid gap-2 xl:flex xl:flex-nowrap xl:items-stretch xl:gap-3">
             <VolumeSummary calculation={calculation} />
 
-            <div className="grid grid-cols-2 gap-2 xl:flex xl:min-w-0 xl:flex-1 xl:flex-nowrap xl:gap-3">
+            <div
+              className={cn(
+                "grid gap-2 xl:flex xl:min-w-0 xl:flex-1 xl:flex-nowrap xl:gap-3",
+                calculation.legs.length === 1 ? "grid-cols-1" : "grid-cols-2",
+              )}
+            >
               {calculation.legs.map((leg) => (
                 <SideResultCard key={leg.id} leg={leg} />
               ))}

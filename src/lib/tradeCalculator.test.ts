@@ -99,6 +99,33 @@ describe('calculateTrade', () => {
     expect(result.display.netResult).toBe('28,00 USDT')
   })
 
+  it('calculates and displays a complete result for one short position', () => {
+    const result = calculateTrade({
+      future: {},
+      legs: [
+        {
+          id: 'future-short',
+          type: 'futures',
+          symbol: 'BTCUSDT',
+          side: 'short',
+          startedAt: '15.07.2026 10:00',
+          endedAt: '15.07.2026 12:00',
+          volumeUsdt: 1250,
+          pnlUsdt: 42.75,
+        },
+      ],
+    })
+
+    expect(result.bundleType).toBe('Фьючерс')
+    expect(result.side).toBe('short')
+    expect(result.legs).toHaveLength(1)
+    expect(result.totalVolume).toBe(1250)
+    expect(result.netResult).toBe(42.75)
+    expect(result.isProfitable).toBe(true)
+    expect(result.display.totalVolume).toBe('1 250,00 USDT')
+    expect(result.display.netResult).toBe('42,75 USDT')
+  })
+
   it('uses signed leg PnL without forcing the spot hedge sign', () => {
     const result = calculateTrade({
       future: {},

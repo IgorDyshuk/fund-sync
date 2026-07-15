@@ -386,6 +386,38 @@ describe("buildAnalysisFromRawExtraction", () => {
     expect(calculation.display.totalVolume).toBe("1 900,00 USDT");
   });
 
+  it("keeps a single short futures position as a complete saveable result", () => {
+    const analysis = buildAnalysisFromRawExtraction({
+      futuresLegs: [
+        {
+          symbol: "BTCUSDT",
+          side: "short",
+          realizedPnlUsdt: -18.42,
+          volumeUsdt: 750,
+          startedAt: "15.07.2026 10:00",
+          endedAt: "15.07.2026 11:30",
+        },
+      ],
+      spotData: { method: "unknown" },
+      confidence: 0.98,
+    });
+    const calculation = calculateTrade(analysis);
+
+    expect(analysis.bundleType).toBe("Фьючерс");
+    expect(analysis.legs).toHaveLength(1);
+    expect(analysis.legs[0]).toMatchObject({
+      type: "futures",
+      side: "short",
+      symbol: "BTCUSDT",
+      volumeUsdt: 750,
+      pnlUsdt: -18.42,
+    });
+    expect(analysis.spot.pnlUsdt).toBeNull();
+    expect(calculation.totalVolume).toBe(750);
+    expect(calculation.netResult).toBe(-18.42);
+    expect(calculation.display.netResult).toBe("-18,42 USDT");
+  });
+
   it("calculates the directional spread for long and short futures", () => {
     const analysis = buildAnalysisFromRawExtraction({
       futuresLegs: [

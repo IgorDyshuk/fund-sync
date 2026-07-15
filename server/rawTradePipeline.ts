@@ -174,6 +174,7 @@ ${analysisQuality === 'smart' ? 'Smart mode is enabled: spend extra attention on
 
 Extraction rules:
 - Do not rely on upload order. Classify each screenshot by visible content.
+- A single futures position is a complete valid result. If only one Long or Short position is present, return exactly one item in futuresLegs[] and do not require or invent a second side.
 - Extract every distinct futures position into futuresLegs[]. Use futuresLeg for the primary first futures leg for legacy compatibility.
 - For futures, extract only visible/raw fields: symbol, side, realizedPnlUsdt, volumeUsdt, coinAmount, entryPrice, exitPrice, startedAt, endedAt, roiPercent.
 - For futures, entryPrice and exitPrice mean the visible average opening and closing prices. Extract them exactly when visible; never calculate them from PnL.
@@ -216,6 +217,7 @@ ${analysisQuality === 'smart' ? 'Smart mode is enabled: spend extra attention on
 Extraction rules:
 - Treat each "--- OCR screenshot N ---" section as one screenshot source.
 - Classify content by visible labels and nearby text, not by upload order.
+- A single futures position is a complete valid result. If OCR contains only one Long or Short position, return exactly one item in futuresLegs[] and do not require or invent a second side.
 - Use Raw OCR text to verify labels and numbers, and Prepared layout rows to pair values from the same visual row. Neither source should be ignored.
 - Extract every distinct futures position into futuresLegs[]. Use futuresLeg for the primary first futures leg for legacy compatibility.
 - For futures, extract only raw fields visible in OCR: symbol, side, realizedPnlUsdt, volumeUsdt, coinAmount, entryPrice, exitPrice, startedAt, endedAt, roiPercent.
