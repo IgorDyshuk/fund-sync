@@ -1,5 +1,7 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnalyzeSheet } from "./components/AnalyzeSheet";
+import { AccountDialog } from "./components/AccountDialog";
+import { AuthDialog } from "./components/AuthDialog";
 import { FloatingAddButton } from "./components/FloatingAddButton";
 import { HistoryPage } from "./components/HistoryPage";
 import { HomePage } from "./components/HomePage";
@@ -19,21 +21,31 @@ import {
   applyManualSpotSign,
   parseManualSpotOverride,
 } from "./lib/manualInstructions";
+import { wait, withTimeout } from "./lib/asyncUtils";
+import { getSyncErrorMessage } from "./lib/syncErrors";
 import {
   prependSavedTrade,
   removeSavedTrade,
 } from "./lib/tradeHistoryActions";
+import { isFirebaseConfigured } from "./lib/firebaseEnv";
 import { loadTradeHistory, saveTradeHistory } from "./lib/tradeHistory";
 import type { AppStatus, ConflictDraft, SavedTrade } from "./types/app";
+import type { AuthUserSummary } from "./types/auth";
 import { isAnalyzeTimeout, postAnalyze, readApiError } from "./utils/api";
 import { cn } from "./utils/cn";
 
 const sheetAnimationMs = 300;
+const authDialogAnimationMs = 200;
+const accountDialogAnimationMs = 220;
+const initialCloudSyncTimeoutMs = 15_000;
 
 function App() {
   const closeTimerRef = useRef<number | null>(null);
   const detailCloseTimerRef = useRef<number | null>(null);
+  const accountCloseTimerRef = useRef<number | null>(null);
+  const authCloseTimerRef = useRef<number | null>(null);
   const requestTokenRef = useRef(0);
+  const hadAuthenticatedSessionRef = useRef(false);
   const [history, setHistory] = useState<SavedTrade[]>(() => loadTradeHistory());
   const [isSheetMounted, setIsSheetMounted] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -53,6 +65,108 @@ function App() {
   const [isDetailsMounted, setIsDetailsMounted] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isHistoryPage, setIsHistoryPage] = useState(false);
+  const [authUser, setAuthUser] = useState<AuthUserSummary | null>(null);
+  const [authLoading, setAuthLoading] = useState(isFirebaseConfigured);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isAuthMounted, setIsAuthMounted] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isAccountMounted, setIsAccountMounted] = useState(false);
+  const [isAccountOpen, setIsAccountOpen] = useState(false);
+  const [isCloudSaving, setIsCloudSaving] = useState(false);
+
+  useEffect(() => {
+    let isActive = true;
+    let stopCloudSubscription: (() => void) | null = null;
+
+    let stopAuthSubscription: () => void = () => undefined;
+
+    if (isFirebaseConfigured) {
+      void import("./lib/cloudSync")
+        .then(({ observeAuthState, observeCloudTrades, syncUserHistory }) => {
+          if (!isActive) {
+            return;
+          }
+
+          stopAuthSubscription = observeAuthState((user) => {
+            stopCloudSubscription?.();
+            stopCloudSubscription = null;
+
+            if (!isActive) {
+              return;
+            }
+
+            setAuthUser(user);
+            // Authentication is ready at this point. Cloud history can continue
+            // loading independently without blocking the account controls.
+            setAuthLoading(false);
+            setAuthError(null);
+
+            if (!user) {
+              if (hadAuthenticatedSessionRef.current) {
+                saveTradeHistory([]);
+                setHistory([]);
+              } else {
+                setHistory(loadTradeHistory());
+              }
+              setAuthLoading(false);
+              return;
+            }
+
+            hadAuthenticatedSessionRef.current = true;
+
+            void withTimeout(
+              syncUserHistory(user),
+              initialCloudSyncTimeoutMs,
+              "Не удалось загрузить облачную историю за 15 секунд.",
+            )
+              .then((nextHistory) => {
+                if (!isActive) {
+                  return;
+                }
+
+                setHistory(nextHistory);
+                saveTradeHistory(nextHistory);
+                stopCloudSubscription = observeCloudTrades(
+                  (cloudHistory) => {
+                    if (!isActive) {
+                      return;
+                    }
+                    setHistory(cloudHistory);
+                    saveTradeHistory(cloudHistory);
+                  },
+                  (error) => {
+                    if (isActive) {
+                      setAuthError(getSyncErrorMessage(error));
+                    }
+                  },
+                );
+              })
+              .catch((error) => {
+                if (isActive) {
+                  setAuthError(getSyncErrorMessage(error));
+                }
+              })
+              .finally(() => {
+                if (isActive) {
+                  setAuthLoading(false);
+                }
+              });
+          });
+        })
+        .catch((error) => {
+          if (isActive) {
+            setAuthLoading(false);
+            setAuthError(getSyncErrorMessage(error));
+          }
+        });
+    }
+
+    return () => {
+      isActive = false;
+      stopCloudSubscription?.();
+      stopAuthSubscription();
+    };
+  }, []);
 
   const calculation = useMemo<TradeCalculation | null>(() => {
     if (!resultAnalysis) {
@@ -86,7 +200,18 @@ function App() {
     }, sheetAnimationMs);
   }
 
-  function deleteTrade(tradeId: string) {
+  async function deleteTrade(tradeId: string) {
+    setAuthError(null);
+    if (authUser) {
+      try {
+        const { deleteCloudTrade } = await import("./lib/cloudSync");
+        await deleteCloudTrade(tradeId);
+      } catch (error) {
+        setAuthError(getSyncErrorMessage(error));
+        return;
+      }
+    }
+
     setHistory((currentHistory) => {
       const nextHistory = removeSavedTrade(currentHistory, tradeId);
       saveTradeHistory(nextHistory);
@@ -220,7 +345,7 @@ function App() {
     setError(null);
   }
 
-  function completeTrade() {
+  async function completeTrade() {
     if (!resultAnalysis || !calculation) {
       return;
     }
@@ -233,13 +358,65 @@ function App() {
       instructions,
     };
 
-    setHistory((currentHistory) => {
-      const nextHistory = prependSavedTrade(currentHistory, savedTrade);
-      saveTradeHistory(nextHistory);
-      return nextHistory;
-    });
+    setIsCloudSaving(true);
+    setAuthError(null);
+    try {
+      if (authUser) {
+        const { saveCloudTrade } = await import("./lib/cloudSync");
+        await saveCloudTrade(savedTrade);
+      }
 
-    closeAnalyzeSheet();
+      setHistory((currentHistory) => {
+        const nextHistory = prependSavedTrade(currentHistory, savedTrade);
+        saveTradeHistory(nextHistory);
+        return nextHistory;
+      });
+
+      closeAnalyzeSheet();
+    } catch (error) {
+      setAuthError(getSyncErrorMessage(error));
+    } finally {
+      setIsCloudSaving(false);
+    }
+  }
+
+  async function handleLogout() {
+    try {
+      closeAccountDialog();
+      await wait(accountDialogAnimationMs);
+      const { logoutFromCloud } = await import("./lib/cloudSync");
+      await logoutFromCloud();
+    } catch (error) {
+      setAuthError(getSyncErrorMessage(error));
+    }
+  }
+
+  function openAccountDialog() {
+    clearAccountCloseTimer();
+    setIsAccountMounted(true);
+    window.requestAnimationFrame(() => setIsAccountOpen(true));
+  }
+
+  function openAuthDialog() {
+    clearAuthCloseTimer();
+    setIsAuthMounted(true);
+    window.requestAnimationFrame(() => setIsAuthOpen(true));
+  }
+
+  function closeAuthDialog() {
+    clearAuthCloseTimer();
+    setIsAuthOpen(false);
+    authCloseTimerRef.current = window.setTimeout(() => {
+      setIsAuthMounted(false);
+    }, authDialogAnimationMs);
+  }
+
+  function closeAccountDialog() {
+    clearAccountCloseTimer();
+    setIsAccountOpen(false);
+    accountCloseTimerRef.current = window.setTimeout(() => {
+      setIsAccountMounted(false);
+    }, accountDialogAnimationMs);
   }
 
   function retryAnalysis() {
@@ -279,6 +456,20 @@ function App() {
     }
   }
 
+  function clearAccountCloseTimer() {
+    if (accountCloseTimerRef.current !== null) {
+      window.clearTimeout(accountCloseTimerRef.current);
+      accountCloseTimerRef.current = null;
+    }
+  }
+
+  function clearAuthCloseTimer() {
+    if (authCloseTimerRef.current !== null) {
+      window.clearTimeout(authCloseTimerRef.current);
+      authCloseTimerRef.current = null;
+    }
+  }
+
   return (
     <div className="relative h-[100svh] overflow-hidden">
       <div
@@ -293,6 +484,11 @@ function App() {
           history={history}
           onOpenHistory={() => setIsHistoryPage(true)}
           onTradeSelect={openTradeDetails}
+          authUser={authUser}
+          authLoading={authLoading}
+          authError={authError}
+          onOpenAuth={openAuthDialog}
+          onOpenAccount={openAccountDialog}
         />
       </div>
 
@@ -342,8 +538,26 @@ function App() {
           onApplyConflicts={applyConflicts}
           onDone={completeTrade}
           onRetry={retryAnalysis}
+          isSaving={isCloudSaving}
           spotSignPromptOpen={spotSignPromptOpen}
           onSpotSignSelect={applySpotSign}
+        />
+      ) : null}
+
+      {isAuthMounted ? (
+        <AuthDialog
+          isOpen={isAuthOpen}
+          onClose={closeAuthDialog}
+          onAuthenticated={closeAuthDialog}
+        />
+      ) : null}
+
+      {isAccountMounted && authUser ? (
+        <AccountDialog
+          isOpen={isAccountOpen}
+          user={authUser}
+          onClose={closeAccountDialog}
+          onLogout={handleLogout}
         />
       ) : null}
     </div>

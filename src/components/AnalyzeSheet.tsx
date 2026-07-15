@@ -30,8 +30,9 @@ type AnalyzeSheetProps = {
   onReset: () => void;
   onDraftsChange: (drafts: Record<string, ConflictDraft>) => void;
   onApplyConflicts: () => void;
-  onDone: () => void;
+  onDone: () => void | Promise<void>;
   onRetry: () => void;
+  isSaving?: boolean;
   spotSignPromptOpen: boolean;
   onSpotSignSelect: (sign: "positive" | "negative") => void;
 };
@@ -55,6 +56,7 @@ export function AnalyzeSheet({
   onApplyConflicts,
   onDone,
   onRetry,
+  isSaving = false,
   spotSignPromptOpen,
   onSpotSignSelect,
 }: AnalyzeSheetProps) {
@@ -102,20 +104,30 @@ export function AnalyzeSheet({
   }, [showResultPanel, status, resultAnalysis]);
 
   useEffect(() => {
-    if (!showCloseConfirm) {
+    if (!isOpen) {
       return;
     }
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
+      if (event.key !== "Escape" || event.repeat) {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (showCloseConfirm) {
         setShowCloseConfirm(false);
+      } else if (showDoneActions) {
+        setShowCloseConfirm(true);
+      } else {
+        onClose();
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
 
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [showCloseConfirm]);
+  }, [isOpen, onClose, showCloseConfirm, showDoneActions]);
 
   function requestClose() {
     if (showDoneActions) {
@@ -299,11 +311,12 @@ export function AnalyzeSheet({
                   </button>
                   <button
                     type="button"
-                    onClick={onDone}
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-300 px-5 text-sm font-semibold text-[#07110c] transition hover:bg-emerald-200 sm:min-w-36"
+                    onClick={() => void onDone()}
+                    disabled={isSaving}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-300 px-5 text-sm font-semibold text-[#07110c] transition hover:bg-emerald-200 disabled:bg-white/10 disabled:text-white/40 sm:min-w-36"
                   >
                     <Check className="h-4 w-4" />
-                    Готово
+                    {isSaving ? "Сохраняем..." : "Готово"}
                   </button>
                 </>
               ) : null}

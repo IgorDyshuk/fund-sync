@@ -4,7 +4,7 @@ export function prependSavedTrade(
   history: SavedTrade[],
   trade: SavedTrade,
 ): SavedTrade[] {
-  return [trade, ...history];
+  return [trade, ...history.filter((existingTrade) => existingTrade.id !== trade.id)];
 }
 
 export function removeSavedTrade(

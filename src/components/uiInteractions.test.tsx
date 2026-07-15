@@ -4,6 +4,8 @@ import { fireEvent, render, screen, waitFor, cleanup } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App";
 import { AnalyzeSheet } from "./AnalyzeSheet";
+import { AccountDialog } from "./AccountDialog";
+import { AuthDialog } from "./AuthDialog";
 import { HistoryPage } from "./HistoryPage";
 import { HomePage } from "./HomePage";
 import { TradeDetailsSheet } from "./TradeDetailsSheet";
@@ -40,6 +42,25 @@ afterEach(() => {
 });
 
 describe("history screen interactions", () => {
+  it("opens the account dialog and explains local mode before Firebase is configured", () => {
+    const onClose = vi.fn();
+
+    render(
+      <AuthDialog
+        isOpen
+        firebaseConfigured={false}
+        onClose={onClose}
+        onAuthenticated={() => undefined}
+      />,
+    );
+
+    expect(screen.getByRole("dialog")).not.toBeNull();
+    expect(screen.getByText(/Firebase пока не настроен/)).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Закрыть" }));
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it("opens the history page from the home widget and returns back", () => {
     const trade = createTrade("history-1", "BTCUSDT", 12);
     saveTradeHistory([trade]);
@@ -64,6 +85,11 @@ describe("history screen interactions", () => {
         history={[trade]}
         onTradeSelect={onHomeSelect}
         onOpenHistory={() => undefined}
+        authUser={null}
+        authLoading={false}
+        authError={null}
+        onOpenAuth={() => undefined}
+        onOpenAccount={() => undefined}
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Открыть связку ETHUSDT" }));
@@ -79,6 +105,52 @@ describe("history screen interactions", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Открыть связку ETHUSDT" }));
     expect(onHistorySelect).toHaveBeenCalledWith(trade);
+  });
+});
+
+describe("account interactions", () => {
+  it("shows Google as a separate authentication option", () => {
+    render(
+      <AuthDialog
+        isOpen
+        firebaseConfigured
+        onClose={() => undefined}
+        onAuthenticated={() => undefined}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Продолжить с Google" }),
+    ).not.toBeNull();
+    expect(screen.getByText("или по email")).not.toBeNull();
+  });
+
+  it("shows the account email and logs out only from the account dialog", () => {
+    const onLogout = vi.fn();
+
+    const { container, rerender } = render(
+      <AccountDialog
+        isOpen
+        user={{ uid: "user-1", email: "user@example.com", displayName: null }}
+        onClose={() => undefined}
+        onLogout={onLogout}
+      />,
+    );
+
+    expect(container.firstElementChild?.className).toContain("opacity-100");
+    expect(screen.getByText("user@example.com")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Выйти из аккаунта" }));
+    expect(onLogout).toHaveBeenCalledOnce();
+
+    rerender(
+      <AccountDialog
+        isOpen={false}
+        user={{ uid: "user-1", email: "user@example.com", displayName: null }}
+        onClose={() => undefined}
+        onLogout={onLogout}
+      />,
+    );
+    expect(container.firstElementChild?.className).toContain("opacity-0");
   });
 });
 
@@ -190,6 +262,17 @@ describe("analyzer close confirmation", () => {
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(onClose).not.toHaveBeenCalled();
 
+    fireEvent.keyDown(window, { key: "Escape", repeat: true });
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByRole("alertdialog")).not.toBeNull();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Остаться" }));
+
     fireEvent.click(screen.getByRole("button", { name: "Закрыть" }));
     fireEvent.click(screen.getByRole("button", { name: "Не сохранять" }));
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -198,6 +281,73 @@ describe("analyzer close confirmation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Закрыть" }));
     fireEvent.click(screen.getByRole("button", { name: "Сохранить" }));
     expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes immediately with Escape before a result exists", () => {
+    const onClose = vi.fn();
+    render(
+      <AnalyzeSheet
+        isOpen
+        files={[]}
+        instructions=""
+        status="idle"
+        error={null}
+        analysis={null}
+        resultAnalysis={null}
+        calculation={null}
+        conflictDrafts={{}}
+        onClose={onClose}
+        onFilesChange={() => undefined}
+        onInstructionsChange={() => undefined}
+        onAnalyze={() => undefined}
+        onReset={() => undefined}
+        onDraftsChange={() => undefined}
+        onApplyConflicts={() => undefined}
+        onDone={() => undefined}
+        onRetry={() => undefined}
+        spotSignPromptOpen={false}
+        onSpotSignSelect={() => undefined}
+      />,
+    );
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("prevents duplicate completion while cloud saving is in progress", () => {
+    const analysis = createTrade("saving", "ETHUSDT", 8).analysis;
+    const onDone = vi.fn();
+    render(
+      <AnalyzeSheet
+        isOpen
+        files={[]}
+        instructions=""
+        status="result"
+        error={null}
+        analysis={analysis}
+        resultAnalysis={analysis}
+        calculation={calculateTrade(analysis)}
+        conflictDrafts={{}}
+        onClose={() => undefined}
+        onFilesChange={() => undefined}
+        onInstructionsChange={() => undefined}
+        onAnalyze={() => undefined}
+        onReset={() => undefined}
+        onDraftsChange={() => undefined}
+        onApplyConflicts={() => undefined}
+        onDone={onDone}
+        onRetry={() => undefined}
+        isSaving
+        spotSignPromptOpen={false}
+        onSpotSignSelect={() => undefined}
+      />,
+    );
+
+    const saveButton = screen.getByRole("button", { name: "Сохраняем..." });
+    expect(saveButton).toHaveProperty("disabled", true);
+    fireEvent.click(saveButton);
+    expect(onDone).not.toHaveBeenCalled();
   });
 });
 

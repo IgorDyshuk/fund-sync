@@ -211,3 +211,36 @@ transfers, and invalid order rows are ignored.
 
 The browser never receives Gemini or Google Cloud credentials. The backend calls
 Google Cloud Vision/Gemini and returns this structured JSON shape.
+
+## Cloud Auth And Sync
+
+История работает локально через `localStorage`, если Firebase не настроен. Для
+авторизации и синхронизации между устройствами используется Firebase Auth и
+Firestore.
+
+1. Создай проект в [Firebase Console](https://console.firebase.google.com/).
+2. Включи Authentication -> Sign-in method -> Email/Password и Google. Для
+   Google выбери Project support email.
+3. Создай Firestore Database в production mode.
+4. Добавь Web App в настройках проекта и перенеси его config в `.env`:
+
+```bash
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your-project
+VITE_FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID=...
+VITE_FIREBASE_APP_ID=...
+```
+
+5. Опубликуй правила из `firestore.rules` через Firebase Console или Firebase
+   CLI. Каждая запись хранится в `user_trades` и доступна только её владельцу.
+6. Для Vercel добавь те же `VITE_FIREBASE_*` переменные в Production и Preview,
+   добавь production-домен Vercel в Authentication -> Settings -> Authorized
+   domains, затем создай новый deployment.
+
+После первого входа локальная история текущего браузера один раз переносится в
+Firestore. Далее сохранение и удаление связок синхронизируются с облаком, а
+изменения с другого устройства приходят через Firestore realtime listener.
+Firebase Web Config не является секретом, но правила Firestore обязательны:
+они не позволяют пользователю читать или менять чужие документы.

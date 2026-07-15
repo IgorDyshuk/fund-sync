@@ -21,6 +21,11 @@ describe("history UI structure", () => {
         history={trades}
         onTradeSelect={() => undefined}
         onOpenHistory={() => undefined}
+        authUser={null}
+        authLoading={false}
+        authError={null}
+        onOpenAuth={() => undefined}
+        onOpenAccount={() => undefined}
       />,
     );
 

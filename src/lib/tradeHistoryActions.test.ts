@@ -15,6 +15,19 @@ describe("tradeHistoryActions", () => {
     expect(existing.map((trade) => trade.id)).toEqual(["old"]);
   });
 
+  it("does not duplicate a trade already delivered by cloud sync", () => {
+    const cloudTrade = createTrade("shared");
+    const savedTrade = {
+      ...cloudTrade,
+      instructions: "latest local value",
+    };
+
+    const next = prependSavedTrade([cloudTrade, createTrade("old")], savedTrade);
+
+    expect(next.map((trade) => trade.id)).toEqual(["shared", "old"]);
+    expect(next[0].instructions).toBe("latest local value");
+  });
+
   it("removes only the requested trade", () => {
     const history = [createTrade("first"), createTrade("second")];
 
