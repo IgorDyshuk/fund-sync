@@ -571,6 +571,134 @@ describe("buildAnalysisFromRawExtraction", () => {
     );
   });
 
+  it("infers a short side and calculates spread for an unlabeled futures screenshot", () => {
+    const instructions = `
+      - PNL (Прибыль): +296.621 USDT (2653.325 USDT получено минус 2356.704 USDT потрачено)
+      - Всего задействовано USDT (сумма покупок): 2356.704 USDT
+      - Средняя цена покупки: 0.020473 USDT (2356.704 USDT / 115 113 ESPORTS)
+      - Средняя цена продажи: 0.023072 USDT (2653.325 USDT / 115 000 ESPORTS)
+    `;
+    const analysis = buildAnalysisFromRawExtraction(
+      {
+        futuresLegs: [
+          {
+            symbol: "ESPORTSUSDT",
+            side: "unknown",
+            realizedPnlUsdt: -288.71,
+            coinAmount: 115000,
+            entryPrice: 0.0183892,
+            exitPrice: 0.021044,
+          },
+        ],
+        spotData: { method: "unknown" },
+      },
+      { instructions },
+    );
+
+    expect(analysis.future.side).toBe("short");
+    expect(analysis.legs[0].side).toBe("short");
+    expect(analysis.spot.pnlUsdt).toBeCloseTo(296.621);
+    expect(analysis.spread.entry).toBeCloseTo(
+      -Math.abs(0.020473 - 0.0183892) /
+        ((0.020473 + 0.0183892) / 2) *
+        100,
+    );
+    expect(analysis.spread.exit).toBeCloseTo(
+      Math.abs(0.023072 - 0.021044) /
+        ((0.023072 + 0.021044) / 2) *
+        100,
+    );
+    expect(analysis.notes).toContain(
+      "Направление ESPORTSUSDT определено как Short по цене входа, цене закрытия и знаку PnL.",
+    );
+  });
+
+  it("does not override an explicitly extracted futures side", () => {
+    const analysis = buildAnalysisFromRawExtraction({
+      futuresLegs: [
+        {
+          symbol: "BTCUSDT",
+          side: "long",
+          realizedPnlUsdt: -10,
+          entryPrice: 100,
+          exitPrice: 110,
+        },
+      ],
+      spotData: { method: "unknown" },
+    });
+
+    expect(analysis.future.side).toBe("long");
+    expect(analysis.notes.some((note) => note.includes("определено как"))).toBe(
+      false,
+    );
+  });
+
+  it.each([
+    { pnl: 10, entryPrice: 100, exitPrice: 110, expectedSide: "long" },
+    { pnl: -10, entryPrice: 100, exitPrice: 110, expectedSide: "short" },
+    { pnl: 10, entryPrice: 110, exitPrice: 100, expectedSide: "short" },
+    { pnl: -10, entryPrice: 110, exitPrice: 100, expectedSide: "long" },
+  ] as const)(
+    "infers $expectedSide from pnl $pnl and the entry/exit price direction",
+    ({ pnl, entryPrice, exitPrice, expectedSide }) => {
+      const analysis = buildAnalysisFromRawExtraction({
+        futuresLegs: [
+          {
+            symbol: "BTCUSDT",
+            side: "unknown",
+            realizedPnlUsdt: pnl,
+            entryPrice,
+            exitPrice,
+          },
+        ],
+        spotData: { method: "unknown" },
+      });
+
+      expect(analysis.future.side).toBe(expectedSide);
+    },
+  );
+
+  it("keeps an unknown side when deterministic inference lacks a price", () => {
+    const analysis = buildAnalysisFromRawExtraction({
+      futuresLegs: [
+        {
+          symbol: "BTCUSDT",
+          side: "unknown",
+          realizedPnlUsdt: -10,
+          entryPrice: 100,
+          exitPrice: null,
+        },
+      ],
+      spotData: { method: "unknown" },
+    });
+
+    expect(analysis.future.side).toBe("unknown");
+    expect(analysis.spread).toEqual({ entry: null, exit: null });
+  });
+
+  it.each([
+    { pnl: 0, entryPrice: 100, exitPrice: 110 },
+    { pnl: 10, entryPrice: 100, exitPrice: 100 },
+  ])(
+    "keeps an unknown side for a neutral inference input",
+    ({ pnl, entryPrice, exitPrice }) => {
+      const analysis = buildAnalysisFromRawExtraction({
+        futuresLegs: [
+          {
+            symbol: "BTCUSDT",
+            side: "unknown",
+            realizedPnlUsdt: pnl,
+            entryPrice,
+            exitPrice,
+          },
+        ],
+        spotData: { method: "unknown" },
+      });
+
+      expect(analysis.future.side).toBe("unknown");
+    },
+  );
+
   it("returns a payload accepted by the frontend analysis schema", () => {
     const analysis = buildAnalysisFromRawExtraction({
       futuresLegs: [{ symbol: "SOLUSDT", side: "long", realizedPnlUsdt: 10 }],

@@ -301,7 +301,8 @@ export function buildAnalysisFromRawExtraction(
   options: { instructions?: string } = {},
 ): AnalysisResponseContract {
   const raw = normalizeRawExtraction(rawInput)
-  const futuresLegs = getRawFuturesLegs(raw)
+  const extractedFuturesLegs = getRawFuturesLegs(raw)
+  const futuresLegs = extractedFuturesLegs.map(inferFuturesLegSide)
   const futuresAnalysisLegs = futuresLegs.map((leg, index) =>
     rawFuturesToAnalysisLeg(leg, index, futuresLegs.length),
   )
@@ -321,6 +322,7 @@ export function buildAnalysisFromRawExtraction(
   const notes = [
     ...raw.notes,
     ...spotCalculation.notes,
+    ...createInferredFuturesSideNotes(extractedFuturesLegs, futuresLegs),
     ...createFuturesVolumeNotes(futuresLegs),
     ...spread.notes,
   ]
@@ -356,6 +358,53 @@ export function buildAnalysisFromRawExtraction(
     confidence: raw.confidence,
     notes: Array.from(new Set(notes.filter(Boolean))),
   }
+}
+
+function inferFuturesLegSide(leg: RawFuturesLeg): RawFuturesLeg {
+  if (leg.side !== 'unknown') {
+    return leg
+  }
+
+  const pnl = leg.realizedPnlUsdt
+  const entryPrice = leg.entryPrice
+  const exitPrice = leg.exitPrice
+  if (
+    pnl === null ||
+    entryPrice === null ||
+    exitPrice === null ||
+    pnl === 0 ||
+    entryPrice <= 0 ||
+    exitPrice <= 0 ||
+    entryPrice === exitPrice
+  ) {
+    return leg
+  }
+
+  const priceChange = exitPrice - entryPrice
+  return {
+    ...leg,
+    side: pnl * priceChange > 0 ? 'long' : 'short',
+  }
+}
+
+function createInferredFuturesSideNotes(
+  extractedLegs: RawFuturesLeg[],
+  futuresLegs: RawFuturesLeg[],
+) {
+  return futuresLegs.flatMap((leg, index) => {
+    if (
+      extractedLegs[index]?.side !== 'unknown' ||
+      leg.side === 'unknown'
+    ) {
+      return []
+    }
+
+    const label = leg.symbol ?? `фьючерс ${index + 1}`
+    const side = leg.side === 'long' ? 'Long' : 'Short'
+    return [
+      `Направление ${label} определено как ${side} по цене входа, цене закрытия и знаку PnL.`,
+    ]
+  })
 }
 
 export function normalizeRawExtraction(rawInput: unknown): RawExtractionResult {
