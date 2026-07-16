@@ -8,6 +8,17 @@ export type MonthlyCoinResult = {
   sharePercent: number;
 };
 
+export type AnalyticsTimeframe = "day" | "month" | "quarter" | "year" | "custom";
+
+export type AnalyticsRange = {
+  timeframe: AnalyticsTimeframe;
+  key: string;
+  start: Date;
+  end: Date;
+  label: string;
+  shortLabel: string;
+};
+
 export type MonthlyTradeSummary = {
   key: string;
   year: number;
@@ -20,6 +31,7 @@ export type MonthlyTradeSummary = {
   tradeCount: number;
   contributionTotal: number;
   coins: MonthlyCoinResult[];
+  range: AnalyticsRange;
 };
 
 export type MonthlyCoinSeriesPoint = {
@@ -30,14 +42,25 @@ export type MonthlyCoinSeriesPoint = {
   shortLabel: string;
   result: number;
   tradeCount: number;
+  range: AnalyticsRange;
 };
 
 export function createMonthlyTradeSummary(
   history: SavedTrade[],
   monthDate: Date,
 ): MonthlyTradeSummary {
-  const year = monthDate.getFullYear();
-  const month = monthDate.getMonth();
+  return createTradeRangeSummary(
+    history,
+    createAnalyticsRange("month", monthDate),
+  );
+}
+
+export function createTradeRangeSummary(
+  history: SavedTrade[],
+  range: AnalyticsRange,
+): MonthlyTradeSummary {
+  const year = range.start.getFullYear();
+  const month = range.start.getMonth();
   const groupedCoins = new Map<string, { result: number; tradeCount: number }>();
   let tradeCount = 0;
 
@@ -46,8 +69,8 @@ export function createMonthlyTradeSummary(
     const result = trade.calculation.netResult;
     if (
       !closedAt ||
-      closedAt.getFullYear() !== year ||
-      closedAt.getMonth() !== month ||
+      closedAt.getTime() < range.start.getTime() ||
+      closedAt.getTime() > range.end.getTime() ||
       typeof result !== "number" ||
       !Number.isFinite(result)
     ) {
@@ -93,17 +116,18 @@ export function createMonthlyTradeSummary(
   );
 
   return {
-    key: createMonthKey(monthDate),
+    key: range.key,
     year,
     month,
-    label: formatMonthLabel(monthDate),
-    shortLabel: formatShortMonthLabel(monthDate),
+    label: range.label,
+    shortLabel: range.shortLabel,
     totalResult,
     positiveResult,
     negativeResult,
     tradeCount,
     contributionTotal,
     coins,
+    range,
   };
 }
 
@@ -112,12 +136,26 @@ export function createMonthlySeries(
   selectedMonth: Date,
   count = 7,
 ) {
-  return Array.from({ length: count }, (_, index) =>
-    createMonthlyTradeSummary(
+  return createAnalyticsSeries(history, "month", selectedMonth, count);
+}
+
+export function createAnalyticsSeries(
+  history: SavedTrade[],
+  timeframe: Exclude<AnalyticsTimeframe, "custom">,
+  endingPeriod: Date,
+  count = 7,
+) {
+  return Array.from({ length: count }, (_, index) => {
+    const anchor = shiftAnalyticsAnchor(
+      timeframe,
+      endingPeriod,
+      index - count + 1,
+    );
+    return createTradeRangeSummary(
       history,
-      shiftMonth(selectedMonth, index - count + 1),
-    ),
-  );
+      createAnalyticsRange(timeframe, anchor),
+    );
+  });
 }
 
 export function getMonthlyCoinTrades(
@@ -125,22 +163,62 @@ export function getMonthlyCoinTrades(
   symbol: string,
   monthDate: Date,
 ) {
-  const normalizedSymbol = normalizeAnalyticsSymbol(symbol);
-  const year = monthDate.getFullYear();
-  const month = monthDate.getMonth();
+  return getAnalyticsRangeTrades(
+    history,
+    createAnalyticsRange("month", monthDate),
+    symbol,
+  );
+}
+
+export function getAnalyticsRangeTrades(
+  history: SavedTrade[],
+  range: AnalyticsRange,
+  symbol?: string,
+) {
+  const normalizedSymbol = symbol ? normalizeAnalyticsSymbol(symbol) : null;
 
   return history.filter((trade) => {
     const closedAt = getTradeClosedAt(trade);
     const result = trade.calculation.netResult;
     return (
       closedAt !== null &&
-      closedAt.getFullYear() === year &&
-      closedAt.getMonth() === month &&
-      normalizeAnalyticsSymbol(trade.calculation.symbol) === normalizedSymbol &&
+      closedAt.getTime() >= range.start.getTime() &&
+      closedAt.getTime() <= range.end.getTime() &&
+      (normalizedSymbol === null ||
+        normalizeAnalyticsSymbol(trade.calculation.symbol) === normalizedSymbol) &&
       typeof result === "number" &&
       Number.isFinite(result)
     );
   });
+}
+
+export function createAnalyticsCoinSeries(
+  history: SavedTrade[],
+  symbol: string,
+  timeframe: Exclude<AnalyticsTimeframe, "custom">,
+  endingPeriod: Date,
+  count = 7,
+): MonthlyCoinSeriesPoint[] {
+  const normalizedSymbol = normalizeAnalyticsSymbol(symbol);
+
+  return createAnalyticsSeries(history, timeframe, endingPeriod, count).map(
+    (period) => {
+      const coin = period.coins.find(
+        (candidate) => candidate.symbol === normalizedSymbol,
+      );
+
+      return {
+        key: period.key,
+        year: period.year,
+        month: period.month,
+        label: period.label,
+        shortLabel: period.shortLabel,
+        result: coin?.result ?? 0,
+        tradeCount: coin?.tradeCount ?? 0,
+        range: period.range,
+      };
+    },
+  );
 }
 
 export function createMonthlyCoinSeries(
@@ -149,23 +227,92 @@ export function createMonthlyCoinSeries(
   endingMonth: Date,
   count = 7,
 ): MonthlyCoinSeriesPoint[] {
-  const normalizedSymbol = normalizeAnalyticsSymbol(symbol);
+  return createAnalyticsCoinSeries(history, symbol, "month", endingMonth, count);
+}
 
-  return createMonthlySeries(history, endingMonth, count).map((month) => {
-    const coin = month.coins.find(
-      (candidate) => candidate.symbol === normalizedSymbol,
-    );
+export function createAnalyticsRange(
+  timeframe: Exclude<AnalyticsTimeframe, "custom">,
+  anchor: Date,
+): AnalyticsRange {
+  const year = anchor.getFullYear();
+  const month = anchor.getMonth();
+  const day = anchor.getDate();
 
+  if (timeframe === "day") {
+    const start = startOfDay(new Date(year, month, day));
     return {
-      key: month.key,
-      year: month.year,
-      month: month.month,
-      label: month.label,
-      shortLabel: month.shortLabel,
-      result: coin?.result ?? 0,
-      tradeCount: coin?.tradeCount ?? 0,
+      timeframe,
+      key: `day:${createDateKey(start)}`,
+      start,
+      end: endOfDay(start),
+      label: formatDayLabel(start),
+      shortLabel: formatShortDayLabel(start),
     };
-  });
+  }
+
+  if (timeframe === "quarter") {
+    const quarterStartMonth = Math.floor(month / 3) * 3;
+    const start = startOfDay(new Date(year, quarterStartMonth, 1));
+    const end = endOfDay(new Date(year, quarterStartMonth + 3, 0));
+    const quarter = Math.floor(quarterStartMonth / 3) + 1;
+    return {
+      timeframe,
+      key: `quarter:${year}-${quarter}`,
+      start,
+      end,
+      label: `${toRomanQuarter(quarter)} квартал ${year} г.`,
+      shortLabel: `${toRomanQuarter(quarter)} кв`,
+    };
+  }
+
+  if (timeframe === "year") {
+    const start = startOfDay(new Date(year, 0, 1));
+    return {
+      timeframe,
+      key: `year:${year}`,
+      start,
+      end: endOfDay(new Date(year, 11, 31)),
+      label: `${year} год`,
+      shortLabel: String(year),
+    };
+  }
+
+  const start = startOfDay(new Date(year, month, 1));
+  return {
+    timeframe,
+    key: createMonthKey(start),
+    start,
+    end: endOfDay(new Date(year, month + 1, 0)),
+    label: formatMonthLabel(start),
+    shortLabel: formatShortMonthLabel(start),
+  };
+}
+
+export function createCustomAnalyticsRange(from: Date, to: Date): AnalyticsRange {
+  const orderedStart = from.getTime() <= to.getTime() ? from : to;
+  const orderedEnd = from.getTime() <= to.getTime() ? to : from;
+  const start = startOfDay(orderedStart);
+  const end = endOfDay(orderedEnd);
+
+  return {
+    timeframe: "custom",
+    key: `custom:${createDateKey(start)}:${createDateKey(end)}`,
+    start,
+    end,
+    label: formatCustomRangeLabel(start, end),
+    shortLabel: "Период",
+  };
+}
+
+export function shiftAnalyticsRange(range: AnalyticsRange, offset: number) {
+  if (range.timeframe === "custom") {
+    return range;
+  }
+
+  return createAnalyticsRange(
+    range.timeframe,
+    shiftAnalyticsAnchor(range.timeframe, range.start, offset),
+  );
 }
 
 export function shiftMonth(date: Date, offset: number) {
@@ -193,4 +340,77 @@ function formatShortMonthLabel(date: Date) {
     .format(date)
     .replace(".", "")
     .slice(0, 3);
+}
+
+function shiftAnalyticsAnchor(
+  timeframe: Exclude<AnalyticsTimeframe, "custom">,
+  date: Date,
+  offset: number,
+) {
+  if (timeframe === "day") {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate() + offset);
+  }
+  if (timeframe === "quarter") {
+    return new Date(date.getFullYear(), date.getMonth() + offset * 3, 1);
+  }
+  if (timeframe === "year") {
+    return new Date(date.getFullYear() + offset, 0, 1);
+  }
+  return shiftMonth(date, offset);
+}
+
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function endOfDay(date: Date) {
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    23,
+    59,
+    59,
+    999,
+  );
+}
+
+function createDateKey(date: Date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function formatDayLabel(date: Date) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatShortDayLabel(date: Date) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+  }).format(date);
+}
+
+function formatCustomRangeLabel(start: Date, end: Date) {
+  if (createDateKey(start) === createDateKey(end)) {
+    return formatDayLabel(start);
+  }
+
+  const formatter = new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  return `${formatter.format(start)} — ${formatter.format(end)}`;
+}
+
+function toRomanQuarter(quarter: number) {
+  return ["I", "II", "III", "IV"][quarter - 1] ?? String(quarter);
 }

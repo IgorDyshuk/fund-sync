@@ -1,10 +1,10 @@
 import { ArrowLeft } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
-  createMonthKey,
-  createMonthlyTradeSummary,
-  getMonthlyCoinTrades,
+  createTradeRangeSummary,
+  getAnalyticsRangeTrades,
   normalizeAnalyticsSymbol,
+  type AnalyticsRange,
 } from "../lib/monthlyAnalytics";
 import { formatUsdt } from "../lib/tradeCalculator";
 import { groupTradesByClosedDate } from "../lib/tradeHistoryView";
@@ -16,7 +16,7 @@ import { TradeHistoryRow } from "./TradeHistoryRow";
 type MonthlyCoinTradesPageProps = {
   history: SavedTrade[];
   symbol: string;
-  monthDate: Date;
+  range: AnalyticsRange;
   onBack: () => void;
   onTradeSelect: (trade: SavedTrade) => void;
 };
@@ -24,25 +24,23 @@ type MonthlyCoinTradesPageProps = {
 export function MonthlyCoinTradesPage({
   history,
   symbol,
-  monthDate,
+  range,
   onBack,
   onTradeSelect,
 }: MonthlyCoinTradesPageProps) {
   const normalizedSymbol = normalizeAnalyticsSymbol(symbol);
-  const [selectedMonth, setSelectedMonth] = useState(
-    () => new Date(monthDate.getFullYear(), monthDate.getMonth(), 1),
-  );
+  const [selectedRange, setSelectedRange] = useState(range);
   const trades = useMemo(
-    () => getMonthlyCoinTrades(history, normalizedSymbol, selectedMonth),
-    [history, normalizedSymbol, selectedMonth],
+    () => getAnalyticsRangeTrades(history, selectedRange, normalizedSymbol),
+    [history, normalizedSymbol, selectedRange],
   );
   const groups = useMemo(() => groupTradesByClosedDate(trades), [trades]);
-  const monthSummary = useMemo(
-    () => createMonthlyTradeSummary(history, selectedMonth),
-    [history, selectedMonth],
+  const periodSummary = useMemo(
+    () => createTradeRangeSummary(history, selectedRange),
+    [history, selectedRange],
   );
   const coinResult =
-    monthSummary.coins.find((coin) => coin.symbol === normalizedSymbol)?.result ??
+    periodSummary.coins.find((coin) => coin.symbol === normalizedSymbol)?.result ??
     0;
 
   return (
@@ -65,7 +63,7 @@ export function MonthlyCoinTradesPage({
 
         <section className="mt-8 pb-2 sm:mt-10 sm:pb-3">
           <p className="text-sm font-medium text-[#8f98a5] sm:text-base">
-            {monthSummary.label}
+            {periodSummary.label}
           </p>
           <p
             className={cn(
@@ -79,13 +77,15 @@ export function MonthlyCoinTradesPage({
           </p>
         </section>
 
-        <MonthlyCoinResultChart
-          history={history}
-          symbol={normalizedSymbol}
-          endingMonth={monthDate}
-          selectedMonth={selectedMonth}
-          onMonthSelect={setSelectedMonth}
-        />
+        {range.timeframe !== "custom" ? (
+          <MonthlyCoinResultChart
+            history={history}
+            symbol={normalizedSymbol}
+            endingRange={range}
+            selectedRange={selectedRange}
+            onPeriodSelect={setSelectedRange}
+          />
+        ) : null}
 
         <section className="pb-24 pt-6 sm:pb-10 sm:pt-8">
           <div className="flex items-center justify-between gap-3">
@@ -98,7 +98,7 @@ export function MonthlyCoinTradesPage({
           </div>
 
           <div
-            key={createMonthKey(selectedMonth)}
+            key={selectedRange.key}
             data-testid="monthly-coin-trades-content"
             aria-live="polite"
             className="monthly-trades-reveal"
@@ -127,7 +127,7 @@ export function MonthlyCoinTradesPage({
             ) : (
               <div className="grid min-h-[45vh] place-items-center text-center">
                 <p className="text-sm text-[#87909d]">
-                  Связки за этот месяц не найдены
+                  Связки за этот период не найдены
                 </p>
               </div>
             )}

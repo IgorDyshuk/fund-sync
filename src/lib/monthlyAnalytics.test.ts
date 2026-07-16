@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { AnalysisResponse } from "./analysisSchema";
 import {
+  createAnalyticsRange,
+  createAnalyticsSeries,
+  createCustomAnalyticsRange,
   createMonthlySeries,
   createMonthlyCoinSeries,
   createMonthlyTradeSummary,
   getMonthlyCoinTrades,
+  getAnalyticsRangeTrades,
   normalizeAnalyticsSymbol,
+  shiftAnalyticsRange,
 } from "./monthlyAnalytics";
 import { calculateTrade } from "./tradeCalculator";
 import type { SavedTrade } from "../types/app";
@@ -105,6 +110,100 @@ describe("monthlyAnalytics", () => {
       "2026-12",
       "2027-01",
     ]);
+  });
+
+  it("creates exact day, quarter and year boundaries", () => {
+    const day = createAnalyticsRange("day", new Date(2026, 6, 16, 15, 30));
+    const quarter = createAnalyticsRange(
+      "quarter",
+      new Date(2026, 6, 16),
+    );
+    const year = createAnalyticsRange("year", new Date(2026, 6, 16));
+
+    expect(day.start).toEqual(new Date(2026, 6, 16, 0, 0, 0, 0));
+    expect(day.end).toEqual(new Date(2026, 6, 16, 23, 59, 59, 999));
+    expect(quarter.start).toEqual(new Date(2026, 6, 1, 0, 0, 0, 0));
+    expect(quarter.end).toEqual(new Date(2026, 8, 30, 23, 59, 59, 999));
+    expect(quarter.label).toBe("III квартал 2026 г.");
+    expect(year.start).toEqual(new Date(2026, 0, 1, 0, 0, 0, 0));
+    expect(year.end).toEqual(new Date(2026, 11, 31, 23, 59, 59, 999));
+  });
+
+  it("includes both custom range boundary dates", () => {
+    const range = createCustomAnalyticsRange(
+      new Date(2026, 6, 10),
+      new Date(2026, 6, 12),
+    );
+    const trades = [
+      createTrade("before", "BTCUSDT", 1, "09.07.2026 23:59"),
+      createTrade("start", "BTCUSDT", 2, "10.07.2026 00:00"),
+      createTrade("end", "BTCUSDT", 3, "12.07.2026 23:59:59"),
+      createTrade("after", "BTCUSDT", 4, "13.07.2026 00:00"),
+    ];
+
+    expect(getAnalyticsRangeTrades(trades, range).map((trade) => trade.id)).toEqual([
+      "start",
+      "end",
+    ]);
+  });
+
+  it("creates seven adjacent periods for every stable timeframe", () => {
+    const ending = new Date(2026, 6, 16);
+
+    expect(
+      createAnalyticsSeries([], "day", ending).map((period) => period.key),
+    ).toEqual([
+      "day:2026-07-10",
+      "day:2026-07-11",
+      "day:2026-07-12",
+      "day:2026-07-13",
+      "day:2026-07-14",
+      "day:2026-07-15",
+      "day:2026-07-16",
+    ]);
+    expect(
+      createAnalyticsSeries([], "quarter", ending).map((period) => period.key),
+    ).toEqual([
+      "quarter:2025-1",
+      "quarter:2025-2",
+      "quarter:2025-3",
+      "quarter:2025-4",
+      "quarter:2026-1",
+      "quarter:2026-2",
+      "quarter:2026-3",
+    ]);
+    expect(
+      createAnalyticsSeries([], "year", ending).map((period) => period.key),
+    ).toEqual([
+      "year:2020",
+      "year:2021",
+      "year:2022",
+      "year:2023",
+      "year:2024",
+      "year:2025",
+      "year:2026",
+    ]);
+  });
+
+  it("shifts standard ranges by their own duration", () => {
+    expect(
+      shiftAnalyticsRange(
+        createAnalyticsRange("day", new Date(2026, 6, 16)),
+        -1,
+      ).key,
+    ).toBe("day:2026-07-15");
+    expect(
+      shiftAnalyticsRange(
+        createAnalyticsRange("quarter", new Date(2026, 6, 16)),
+        -1,
+      ).key,
+    ).toBe("quarter:2026-2");
+    expect(
+      shiftAnalyticsRange(
+        createAnalyticsRange("year", new Date(2026, 6, 16)),
+        -1,
+      ).key,
+    ).toBe("year:2025");
   });
 
   it("ignores trades without a valid closing date or finite result", () => {

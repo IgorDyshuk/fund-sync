@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import {
-  createMonthKey,
-  createMonthlyCoinSeries,
+  createAnalyticsCoinSeries,
+  type AnalyticsRange,
 } from "../lib/monthlyAnalytics";
 import type { SavedTrade } from "../types/app";
 import { cn } from "../utils/cn";
@@ -9,23 +9,32 @@ import { cn } from "../utils/cn";
 type MonthlyCoinResultChartProps = {
   history: SavedTrade[];
   symbol: string;
-  endingMonth: Date;
-  selectedMonth: Date;
-  onMonthSelect: (monthDate: Date) => void;
+  endingRange: AnalyticsRange;
+  selectedRange: AnalyticsRange;
+  onPeriodSelect: (range: AnalyticsRange) => void;
 };
 
 export function MonthlyCoinResultChart({
   history,
   symbol,
-  endingMonth,
-  selectedMonth,
-  onMonthSelect,
+  endingRange,
+  selectedRange,
+  onPeriodSelect,
 }: MonthlyCoinResultChartProps) {
   const points = useMemo(
-    () => createMonthlyCoinSeries(history, symbol, endingMonth, 7),
-    [endingMonth, history, symbol],
+    () =>
+      endingRange.timeframe === "custom"
+        ? []
+        : createAnalyticsCoinSeries(
+            history,
+            symbol,
+            endingRange.timeframe,
+            endingRange.start,
+            7,
+          ),
+    [endingRange, history, symbol],
   );
-  const selectedMonthKey = createMonthKey(selectedMonth);
+  const selectedPeriodKey = selectedRange.key;
   const highestResult = Math.max(0, ...points.map((point) => point.result));
   const lowestResult = Math.min(0, ...points.map((point) => point.result));
   const chartRange = highestResult - lowestResult || 1;
@@ -35,7 +44,7 @@ export function MonthlyCoinResultChart({
   return (
     <section
       role="region"
-      aria-label={`Динамика ${symbol} за семь месяцев`}
+      aria-label={getChartAriaLabel(symbol, endingRange)}
       className="border-b border-white/[0.08] py-7 sm:py-9"
     >
       <div className="relative h-[280px] sm:h-[330px]">
@@ -50,7 +59,7 @@ export function MonthlyCoinResultChart({
                 ((highestResult - point.result) / chartRange) * 100;
               const barTop = Math.min(valuePosition, zeroPosition);
               const barHeight = Math.abs(valuePosition - zeroPosition);
-              const isSelected = point.key === selectedMonthKey;
+              const isSelected = point.key === selectedPeriodKey;
 
               return (
                 <div
@@ -92,7 +101,7 @@ export function MonthlyCoinResultChart({
               key={point.key}
               className={cn(
                 "self-end truncate text-center text-[10px] uppercase text-[#737c88] sm:text-xs",
-                point.key === selectedMonthKey && "font-semibold text-white",
+                point.key === selectedPeriodKey && "font-semibold text-white",
               )}
             >
               {point.shortLabel}
@@ -105,11 +114,9 @@ export function MonthlyCoinResultChart({
             <button
               key={point.key}
               type="button"
-              onClick={() =>
-                onMonthSelect(new Date(point.year, point.month, 1))
-              }
+              onClick={() => onPeriodSelect(point.range)}
               aria-label={`Показать связки ${symbol} за ${point.label}`}
-              aria-pressed={point.key === selectedMonthKey}
+              aria-pressed={point.key === selectedPeriodKey}
               title={`${point.label}: ${formatChartValue(point.result)}`}
               className="h-full min-w-0 rounded-sm transition hover:bg-white/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-300/70"
             />
@@ -118,6 +125,13 @@ export function MonthlyCoinResultChart({
       </div>
     </section>
   );
+}
+
+function getChartAriaLabel(symbol: string, range: AnalyticsRange) {
+  if (range.timeframe === "month") {
+    return `Динамика ${symbol} за семь месяцев`;
+  }
+  return `Динамика ${symbol} по периодам`;
 }
 
 function ChartGuide({ position, value }: { position: number; value: number }) {

@@ -1,15 +1,28 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AnalysisResponse } from "../lib/analysisSchema";
+import {
+  createAnalyticsRange,
+  createCustomAnalyticsRange,
+} from "../lib/monthlyAnalytics";
 import { calculateTrade } from "../lib/tradeCalculator";
 import type { SavedTrade } from "../types/app";
 import { MonthlyCoinTradesPage } from "./MonthlyCoinTradesPage";
 import { MonthlyOverviewPage } from "./MonthlyOverviewPage";
 import { MonthlyPerformanceWidget } from "./MonthlyPerformanceWidget";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe("monthly analytics UI", () => {
   it("groups repeated coins and shows the signed monthly result", () => {
@@ -152,10 +165,15 @@ describe("monthly analytics UI", () => {
 
     expect(onCoinSelect).toHaveBeenCalledOnce();
     expect(onCoinSelect.mock.calls[0][0]).toBe("BTCUSDT");
-    expect(onCoinSelect.mock.calls[0][1]).toEqual(new Date(2026, 6, 1));
+    expect(onCoinSelect.mock.calls[0][1]).toMatchObject({
+      timeframe: "month",
+      key: "2026-07",
+    });
   });
 
   it("selects a fixed chart month and disables navigation beyond the current month", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 6, 16, 12, 0));
     const onCoinSelect = vi.fn();
     render(
       <MonthlyOverviewPage
@@ -185,7 +203,10 @@ describe("monthly analytics UI", () => {
         name: "Открыть связки SOLUSDT за Июнь 2026 г.",
       }),
     );
-    expect(onCoinSelect).toHaveBeenCalledWith("SOLUSDT", new Date(2026, 5, 1));
+    expect(onCoinSelect).toHaveBeenCalledWith(
+      "SOLUSDT",
+      expect.objectContaining({ timeframe: "month", key: "2026-06" }),
+    );
   });
 
   it("shows only the selected coin trades grouped by closing date", () => {
@@ -203,7 +224,7 @@ describe("monthly analytics UI", () => {
           juneTrade,
         ]}
         symbol="BTCUSDT"
-        monthDate={new Date(2026, 6, 1)}
+        range={createAnalyticsRange("month", new Date(2026, 6, 1))}
         onBack={() => undefined}
         onTradeSelect={onTradeSelect}
       />,
@@ -270,7 +291,7 @@ describe("monthly analytics UI", () => {
       <MonthlyCoinTradesPage
         history={[createTrade("july", "BTCUSDT", 15, "12.07.2026 12:00")]}
         symbol="BTCUSDT"
-        monthDate={new Date(2026, 6, 1)}
+        range={createAnalyticsRange("month", new Date(2026, 6, 1))}
         onBack={() => undefined}
         onTradeSelect={() => undefined}
       />,
@@ -285,7 +306,180 @@ describe("monthly analytics UI", () => {
     expect(screen.getByText("Июнь 2026 г.")).not.toBeNull();
     expect(screen.getByText("0,00 USDT")).not.toBeNull();
     expect(screen.getByText("0 связок")).not.toBeNull();
-    expect(screen.getByText("Связки за этот месяц не найдены")).not.toBeNull();
+    expect(screen.getByText("Связки за этот период не найдены")).not.toBeNull();
+  });
+
+  it("applies a daily preset and keeps the horizontal period selector", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 6, 16, 12, 0));
+    render(
+      <MonthlyOverviewPage
+        history={[createTrade("today", "BTCUSDT", 12, "16.07.2026 12:00")]}
+        initialMonth={new Date(2026, 6, 1)}
+        onBack={() => undefined}
+        onCoinSelect={() => undefined}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Выбрать период анализа" }),
+    );
+    fireEvent.click(screen.getByRole("radio", { name: "День" }));
+    expect((screen.getByLabelText("От") as HTMLInputElement).value).toBe(
+      "2026-07-16",
+    );
+    expect((screen.getByLabelText("До") as HTMLInputElement).value).toBe(
+      "2026-07-16",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Применить" }));
+
+    expect(
+      screen.getByRole("heading", { name: "Обзор за день" }),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("region", { name: "Динамика по периодам" }),
+    ).not.toBeNull();
+    expect(screen.getAllByText("12,00 USDT").length).toBeGreaterThan(0);
+  });
+
+  it("updates date fields to the selected preset boundaries", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 6, 16, 12, 0));
+    render(
+      <MonthlyOverviewPage
+        history={[]}
+        initialMonth={new Date(2026, 6, 1)}
+        onBack={() => undefined}
+        onCoinSelect={() => undefined}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Выбрать период анализа" }),
+    );
+
+    fireEvent.click(screen.getByRole("radio", { name: "Месяц" }));
+    expectDateFields("2026-07-01", "2026-07-31");
+
+    fireEvent.click(screen.getByRole("radio", { name: "Квартал" }));
+    expectDateFields("2026-07-01", "2026-09-30");
+
+    fireEvent.click(screen.getByRole("radio", { name: "Год" }));
+    expectDateFields("2026-01-01", "2026-12-31");
+  });
+
+  it("applies a custom range and hides the horizontal period selector", async () => {
+    render(
+      <MonthlyOverviewPage
+        history={[
+          createTrade("inside", "BTCUSDT", 12, "10.07.2026 12:00"),
+          createTrade("outside", "ETHUSDT", 30, "15.07.2026 12:00"),
+        ]}
+        initialMonth={new Date(2026, 6, 1)}
+        onBack={() => undefined}
+        onCoinSelect={() => undefined}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Выбрать период анализа" }),
+    );
+    fireEvent.change(screen.getByLabelText("От"), {
+      target: { value: "2026-07-08" },
+    });
+    fireEvent.change(screen.getByLabelText("До"), {
+      target: { value: "2026-07-12" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Применить" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Период анализа" })).toBeNull();
+    });
+
+    expect(
+      screen.getByRole("heading", { name: "Обзор за период" }),
+    ).not.toBeNull();
+    expect(screen.queryByRole("region", { name: /Динамика/ })).toBeNull();
+    expect(screen.getAllByText("12,00 USDT").length).toBeGreaterThan(0);
+    expect(screen.getByText("BTCUSDT")).not.toBeNull();
+    expect(screen.queryByText("ETHUSDT")).toBeNull();
+  });
+
+  it("does not apply a custom range with reversed dates", () => {
+    render(
+      <MonthlyOverviewPage
+        history={[]}
+        initialMonth={new Date(2026, 6, 1)}
+        onBack={() => undefined}
+        onCoinSelect={() => undefined}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Выбрать период анализа" }),
+    );
+    fireEvent.change(screen.getByLabelText("От"), {
+      target: { value: "2026-07-20" },
+    });
+    fireEvent.change(screen.getByLabelText("До"), {
+      target: { value: "2026-07-10" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Применить" }));
+
+    expect(
+      screen.getByRole("alert").textContent,
+    ).toBe("Дата начала не может быть позже даты окончания.");
+    expect(
+      screen.getByRole("heading", { name: "Обзор за месяц" }),
+    ).not.toBeNull();
+  });
+
+  it("does not apply a custom range with a missing boundary", () => {
+    render(
+      <MonthlyOverviewPage
+        history={[]}
+        initialMonth={new Date(2026, 6, 1)}
+        onBack={() => undefined}
+        onCoinSelect={() => undefined}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Выбрать период анализа" }),
+    );
+    fireEvent.change(screen.getByLabelText("От"), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Применить" }));
+
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Укажите начало и окончание периода.",
+    );
+    expect(
+      screen.getByRole("heading", { name: "Обзор за месяц" }),
+    ).not.toBeNull();
+  });
+
+  it("shows custom-range coin trades without a period chart", () => {
+    render(
+      <MonthlyCoinTradesPage
+        history={[
+          createTrade("inside", "BTCUSDT", 12, "10.07.2026 12:00"),
+          createTrade("outside", "BTCUSDT", 30, "15.07.2026 12:00"),
+        ]}
+        symbol="BTCUSDT"
+        range={createCustomAnalyticsRange(
+          new Date(2026, 6, 8),
+          new Date(2026, 6, 12),
+        )}
+        onBack={() => undefined}
+        onTradeSelect={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText("10 июля 2026 г.")).not.toBeNull();
+    expect(screen.queryByText("15 июля 2026 г.")).toBeNull();
+    expect(screen.queryByRole("region", { name: /Динамика/ })).toBeNull();
   });
 });
 
@@ -327,4 +521,9 @@ function createTrade(
     },
     instructions: "",
   };
+}
+
+function expectDateFields(from: string, to: string) {
+  expect((screen.getByLabelText("От") as HTMLInputElement).value).toBe(from);
+  expect((screen.getByLabelText("До") as HTMLInputElement).value).toBe(to);
 }

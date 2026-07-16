@@ -103,6 +103,138 @@ describe("history screen interactions", () => {
     expect(screen.getByRole("heading", { name: "Обзор" })).not.toBeNull();
   });
 
+  it("locks the monthly page, hides add, and resets filters after leaving", async () => {
+    saveTradeHistory([createTrade("monthly-filter", "BTCUSDT", 12)]);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Подробнее/ }));
+    const monthlyPage = screen
+      .getByRole("heading", { name: "Обзор за месяц" })
+      .closest("main");
+    const monthlyScroller = monthlyPage?.parentElement as HTMLDivElement;
+    expect(screen.getByRole("button", { name: "Добавить связку" })).not.toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Выбрать период анализа" }),
+    );
+    expect(screen.queryByRole("button", { name: "Добавить связку" })).toBeNull();
+    expect(monthlyPage?.parentElement?.className).toContain("overflow-hidden");
+
+    fireEvent.click(screen.getByRole("radio", { name: "День" }));
+    fireEvent.click(screen.getByRole("button", { name: "Применить" }));
+    expect(screen.getByRole("heading", { name: "Обзор за день" })).not.toBeNull();
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Период анализа" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Добавить связку" })).not.toBeNull();
+    });
+
+    const dailyPage = screen
+      .getByRole("heading", { name: "Обзор за день" })
+      .closest("main");
+    monthlyScroller.scrollTop = 420;
+    fireEvent.click(
+      within(dailyPage as HTMLElement).getByRole("button", {
+        name: "Вернуться на главную",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Подробнее/ }));
+
+    expect(
+      screen.getByRole("heading", { name: "Обзор за месяц" }),
+    ).not.toBeNull();
+    expect(monthlyScroller.scrollTop).toBe(0);
+  });
+
+  it("unlocks the monthly page after closing the filter with Escape or the backdrop", async () => {
+    saveTradeHistory([createTrade("monthly-close", "BTCUSDT", 12)]);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Подробнее/ }));
+    const monthlyPage = screen
+      .getByRole("heading", { name: "Обзор за месяц" })
+      .closest("main");
+    const monthlyScroller = monthlyPage?.parentElement as HTMLDivElement;
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Выбрать период анализа" }),
+    );
+    expect(monthlyScroller.className).toContain("overflow-hidden");
+    expect(screen.queryByRole("button", { name: "Добавить связку" })).toBeNull();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Период анализа" })).toBeNull();
+    });
+    expect(monthlyScroller.className).toContain("overflow-y-auto");
+    expect(monthlyScroller.className).not.toContain("overflow-hidden");
+    expect(screen.getByRole("button", { name: "Добавить связку" })).not.toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Выбрать период анализа" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Закрыть выбор периода" }),
+    );
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Период анализа" })).toBeNull();
+    });
+    expect(monthlyScroller.className).toContain("overflow-y-auto");
+    expect(screen.getByRole("button", { name: "Добавить связку" })).not.toBeNull();
+  });
+
+  it("keeps a custom range after opening a coin and returning to the overview", async () => {
+    saveTradeHistory([createTrade("coin-custom", "BTCUSDT", 12)]);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Подробнее/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Выбрать период анализа" }),
+    );
+    fireEvent.change(screen.getByLabelText("От"), {
+      target: { value: "2026-07-14" },
+    });
+    fireEvent.change(screen.getByLabelText("До"), {
+      target: { value: "2026-07-14" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Применить" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Период анализа" })).toBeNull();
+    });
+    expect(screen.getByRole("heading", { name: "Обзор за период" })).not.toBeNull();
+
+    const openCoinButton = screen.getByRole("button", {
+      name: "Открыть связки BTCUSDT за 14 июля 2026 г.",
+    });
+    fireEvent.click(openCoinButton);
+
+    const coinPage = screen
+      .getByRole("heading", { name: "BTCUSDT", level: 1 })
+      .closest("main");
+    expect(
+      within(coinPage as HTMLElement).getAllByText("14 июля 2026 г.").length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(coinPage as HTMLElement).queryByRole("region", { name: /Динамика/ }),
+    ).toBeNull();
+
+    fireEvent.click(
+      within(coinPage as HTMLElement).getByRole("button", {
+        name: "Вернуться к обзору месяца",
+      }),
+    );
+    expect(screen.getByRole("heading", { name: "Обзор за период" })).not.toBeNull();
+    expect(
+      screen.getByRole("button", {
+        name: "Открыть связки BTCUSDT за 14 июля 2026 г.",
+      }),
+    ).not.toBeNull();
+  });
+
   it("opens a coin month page and returns to the same monthly overview", () => {
     saveTradeHistory([createTrade("coin-month-1", "BTCUSDT", 12)]);
 

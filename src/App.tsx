@@ -37,6 +37,7 @@ import {
   removeSavedTrade,
 } from "./lib/tradeHistoryActions";
 import { isFirebaseConfigured } from "./lib/firebaseEnv";
+import type { AnalyticsRange } from "./lib/monthlyAnalytics";
 import { loadTradeHistory, saveTradeHistory } from "./lib/tradeHistory";
 import {
   createManualTradeDraft,
@@ -59,6 +60,7 @@ function App() {
   const accountCloseTimerRef = useRef<number | null>(null);
   const authCloseTimerRef = useRef<number | null>(null);
   const csvImportCloseTimerRef = useRef<number | null>(null);
+  const monthlyPageRef = useRef<HTMLDivElement | null>(null);
   const requestTokenRef = useRef(0);
   const hadAuthenticatedSessionRef = useRef(false);
   const [history, setHistory] = useState<SavedTrade[]>(() => loadTradeHistory());
@@ -82,9 +84,11 @@ function App() {
   const [activePage, setActivePage] = useState<
     "home" | "history" | "monthly" | "monthlyCoin"
   >("home");
+  const [monthlyOverviewSession, setMonthlyOverviewSession] = useState(0);
+  const [isMonthlyFilterOpen, setIsMonthlyFilterOpen] = useState(false);
   const [selectedMonthlyCoin, setSelectedMonthlyCoin] = useState<{
     symbol: string;
-    monthDate: Date;
+    range: AnalyticsRange;
   } | null>(null);
   const [authUser, setAuthUser] = useState<AuthUserSummary | null>(null);
   const [authLoading, setAuthLoading] = useState(isFirebaseConfigured);
@@ -818,7 +822,14 @@ function App() {
         <HomePage
           history={history}
           onOpenHistory={() => setActivePage("history")}
-          onOpenMonthlyOverview={() => setActivePage("monthly")}
+          onOpenMonthlyOverview={() => {
+            if (monthlyPageRef.current) {
+              monthlyPageRef.current.scrollTop = 0;
+            }
+            setMonthlyOverviewSession((session) => session + 1);
+            setIsMonthlyFilterOpen(false);
+            setActivePage("monthly");
+          }}
           onTradeSelect={openTradeDetails}
           authUser={authUser}
           authLoading={authLoading}
@@ -845,23 +856,32 @@ function App() {
       </div>
 
       <div
+        ref={monthlyPageRef}
         className={cn(
           "absolute inset-0 h-[100svh] transform-gpu transition-transform duration-300 ease-out",
           activePage === "monthly"
-            ? "pointer-events-auto translate-x-0 overflow-y-auto"
+            ? cn(
+                "pointer-events-auto translate-x-0",
+                isMonthlyFilterOpen ? "overflow-hidden" : "overflow-y-auto",
+              )
             : activePage === "monthlyCoin"
               ? "pointer-events-none -translate-x-full overflow-y-hidden"
               : "pointer-events-none translate-x-full overflow-y-hidden",
         )}
       >
         <MonthlyOverviewPage
+          key={monthlyOverviewSession}
           history={history}
           isActive={activePage === "monthly"}
-          onCoinSelect={(symbol, monthDate) => {
-            setSelectedMonthlyCoin({ symbol, monthDate });
+          onFilterOpenChange={setIsMonthlyFilterOpen}
+          onCoinSelect={(symbol, range) => {
+            setSelectedMonthlyCoin({ symbol, range });
             setActivePage("monthlyCoin");
           }}
-          onBack={() => setActivePage("home")}
+          onBack={() => {
+            setIsMonthlyFilterOpen(false);
+            setActivePage("home");
+          }}
         />
       </div>
 
@@ -875,17 +895,19 @@ function App() {
       >
         {selectedMonthlyCoin ? (
           <MonthlyCoinTradesPage
-            key={`${selectedMonthlyCoin.symbol}-${selectedMonthlyCoin.monthDate.toISOString()}`}
+            key={`${selectedMonthlyCoin.symbol}-${selectedMonthlyCoin.range.key}`}
             history={history}
             symbol={selectedMonthlyCoin.symbol}
-            monthDate={selectedMonthlyCoin.monthDate}
+            range={selectedMonthlyCoin.range}
             onBack={() => setActivePage("monthly")}
             onTradeSelect={openTradeDetails}
           />
         ) : null}
       </div>
 
-      <FloatingAddButton onClick={openAnalyzeSheet} />
+      {!isMonthlyFilterOpen ? (
+        <FloatingAddButton onClick={openAnalyzeSheet} />
+      ) : null}
 
       <ManualTradeDialog
         key={editingTrade?.id ?? "new-manual-trade"}

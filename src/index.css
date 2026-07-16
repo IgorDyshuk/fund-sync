@@ -98,9 +98,39 @@ button:disabled {
   }
 }
 
+.timeframe-sheet-overlay {
+  animation: timeframe-overlay-in 220ms ease-out both;
+}
+
+.timeframe-sheet-panel {
+  animation: timeframe-panel-in 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes timeframe-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes timeframe-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(36px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .monthly-donut-reveal,
-  .monthly-trades-reveal {
+  .monthly-trades-reveal,
+  .timeframe-sheet-overlay,
+  .timeframe-sheet-panel {
     animation-duration: 1ms;
   }
 }

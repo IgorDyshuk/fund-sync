@@ -3,27 +3,32 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  SlidersHorizontal,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
-  createMonthlySeries,
-  createMonthlyTradeSummary,
-  shiftMonth,
+  createAnalyticsRange,
+  createAnalyticsSeries,
+  createTradeRangeSummary,
+  shiftAnalyticsRange,
+  type AnalyticsRange,
 } from "../lib/monthlyAnalytics";
 import { getMonthlyCoinColor } from "../lib/monthlyChart";
 import { formatUsdt } from "../lib/tradeCalculator";
 import type { SavedTrade } from "../types/app";
 import { cn } from "../utils/cn";
+import { AnalyticsTimeframeSheet } from "./AnalyticsTimeframeSheet";
 import { MonthlyDonutChart } from "./MonthlyDonutChart";
 
 type MonthlyOverviewPageProps = {
   history: SavedTrade[];
   onBack: () => void;
-  onCoinSelect: (symbol: string, monthDate: Date) => void;
+  onCoinSelect: (symbol: string, range: AnalyticsRange) => void;
   initialMonth?: Date;
   isActive?: boolean;
+  onFilterOpenChange?: (isOpen: boolean) => void;
 };
 
 export function MonthlyOverviewPage({
@@ -32,32 +37,56 @@ export function MonthlyOverviewPage({
   onCoinSelect,
   initialMonth = new Date(),
   isActive = true,
+  onFilterOpenChange = () => undefined,
 }: MonthlyOverviewPageProps) {
-  const [selectedMonth, setSelectedMonth] = useState(
-    () => new Date(initialMonth.getFullYear(), initialMonth.getMonth(), 1),
+  const [selectedRange, setSelectedRange] = useState(() =>
+    createAnalyticsRange("month", initialMonth),
   );
-  const currentMonth = useMemo(() => {
-    const current = new Date();
-    return new Date(current.getFullYear(), current.getMonth(), 1);
-  }, []);
+  const [isTimeframeOpen, setIsTimeframeOpen] = useState(false);
+  const currentDate = useMemo(() => new Date(), []);
   const summary = useMemo(
-    () => createMonthlyTradeSummary(history, selectedMonth),
-    [history, selectedMonth],
+    () => createTradeRangeSummary(history, selectedRange),
+    [history, selectedRange],
   );
   const series = useMemo(
-    () => createMonthlySeries(history, currentMonth, 7),
-    [currentMonth, history],
+    () =>
+      selectedRange.timeframe === "custom"
+        ? []
+        : createAnalyticsSeries(
+            history,
+            selectedRange.timeframe,
+            currentDate,
+            7,
+          ),
+    [currentDate, history, selectedRange.timeframe],
   );
   const maxSeriesResult = Math.max(
     ...series.map((month) => Math.abs(month.totalResult)),
     1,
   );
-  const canGoForward = selectedMonth.getTime() < currentMonth.getTime();
+  const currentRange =
+    selectedRange.timeframe === "custom"
+      ? null
+      : createAnalyticsRange(selectedRange.timeframe, currentDate);
+  const canGoForward =
+    currentRange !== null &&
+    selectedRange.end.getTime() < currentRange.end.getTime();
+  const isCustomRange = selectedRange.timeframe === "custom";
+
+  const openTimeframe = () => {
+    setIsTimeframeOpen(true);
+    onFilterOpenChange(true);
+  };
+
+  const closeTimeframe = () => {
+    setIsTimeframeOpen(false);
+    onFilterOpenChange(false);
+  };
 
   return (
     <main className="min-h-full bg-[#08090d] text-[#e7e9ee]">
       <section className="mx-auto min-h-full w-full max-w-[1120px] px-[15px] py-3 sm:px-5 sm:py-6 lg:px-8 lg:py-10">
-        <header className="flex items-center gap-3 sm:gap-4">
+        <header className="grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-3 sm:gap-4">
           <button
             type="button"
             onClick={onBack}
@@ -66,33 +95,54 @@ export function MonthlyOverviewPage({
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
-          <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-4xl">
-            Обзор за месяц
+          <h1 className="truncate text-center text-xl font-semibold tracking-tight text-white sm:text-4xl">
+            {getOverviewTitle(selectedRange)}
           </h1>
+          <button
+            type="button"
+            onClick={openTimeframe}
+            aria-label="Выбрать период анализа"
+            className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-[#c5ccd6] transition hover:bg-white/[0.07] hover:text-white"
+          >
+            <SlidersHorizontal className="h-5 w-5" />
+            {selectedRange.timeframe !== "month" ? (
+              <span className="absolute right-1.5 bottom-1.5 h-2 w-2 rounded-full bg-emerald-300 ring-2 ring-[#08090d]" />
+            ) : null}
+          </button>
         </header>
 
-        <div className="mt-6 flex items-center justify-center gap-3 sm:mt-8">
-          <button
-            type="button"
-            onClick={() => setSelectedMonth((month) => shiftMonth(month, -1))}
-            aria-label="Предыдущий месяц"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 text-[#b9c1cc] transition hover:bg-white/[0.05] hover:text-white"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-          <div className="min-w-[176px] text-center text-base font-semibold text-white sm:min-w-[220px] sm:text-lg">
+        {isCustomRange ? (
+          <div className="mt-6 text-center text-sm font-semibold text-white sm:mt-8 sm:text-lg">
             {summary.label}
           </div>
-          <button
-            type="button"
-            onClick={() => setSelectedMonth((month) => shiftMonth(month, 1))}
-            disabled={!canGoForward}
-            aria-label="Следующий месяц"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 text-[#b9c1cc] transition hover:bg-white/[0.05] hover:text-white disabled:cursor-default disabled:opacity-30"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
-        </div>
+        ) : (
+          <div className="mt-6 flex items-center justify-center gap-3 sm:mt-8">
+            <button
+              type="button"
+              onClick={() =>
+                setSelectedRange((range) => shiftAnalyticsRange(range, -1))
+              }
+              aria-label={getPeriodNavigationLabel(selectedRange, "previous")}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 text-[#b9c1cc] transition hover:bg-white/[0.05] hover:text-white"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <div className="min-w-[176px] text-center text-base font-semibold text-white sm:min-w-[220px] sm:text-lg">
+              {summary.label}
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                setSelectedRange((range) => shiftAnalyticsRange(range, 1))
+              }
+              disabled={!canGoForward}
+              aria-label={getPeriodNavigationLabel(selectedRange, "next")}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 text-[#b9c1cc] transition hover:bg-white/[0.05] hover:text-white disabled:cursor-default disabled:opacity-30"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </div>
+        )}
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(360px,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-10">
           <div className="flex justify-center">
@@ -131,50 +181,60 @@ export function MonthlyOverviewPage({
           </div>
         </div>
 
-        <section aria-label="Динамика по месяцам" className="mt-7 border-y border-white/[0.08] py-5 sm:mt-10 sm:py-6">
-          <div className="grid h-[116px] grid-cols-7 items-end gap-2 sm:h-[142px] sm:gap-4">
-            {series.map((month) => {
-              const barHeight =
-                month.totalResult === 0
-                  ? 8
-                  : Math.max((Math.abs(month.totalResult) / maxSeriesResult) * 88, 14);
-              const isSelected = month.key === summary.key;
+        {!isCustomRange ? (
+          <section
+            aria-label={
+              selectedRange.timeframe === "month"
+                ? "Динамика по месяцам"
+                : "Динамика по периодам"
+            }
+            className="mt-7 border-y border-white/[0.08] py-5 sm:mt-10 sm:py-6"
+          >
+            <div className="grid h-[116px] grid-cols-7 items-end gap-2 sm:h-[142px] sm:gap-4">
+              {series.map((period) => {
+                const barHeight =
+                  period.totalResult === 0
+                    ? 8
+                    : Math.max(
+                        (Math.abs(period.totalResult) / maxSeriesResult) * 88,
+                        14,
+                      );
+                const isSelected = period.key === summary.key;
 
-              return (
-                <button
-                  key={month.key}
-                  type="button"
-                  onClick={() =>
-                    setSelectedMonth(new Date(month.year, month.month, 1))
-                  }
-                  aria-label={`${month.label}: ${formatUsdt(month.totalResult)}`}
-                  className="group flex h-full min-w-0 flex-col items-center justify-end gap-2"
-                >
-                  <div className="flex h-[88px] w-full max-w-12 items-end rounded-t-sm bg-white/[0.035] sm:h-[108px]">
+                return (
+                  <button
+                    key={period.key}
+                    type="button"
+                    onClick={() => setSelectedRange(period.range)}
+                    aria-label={`${period.label}: ${formatUsdt(period.totalResult)}`}
+                    className="group flex h-full min-w-0 flex-col items-center justify-end gap-2"
+                  >
+                    <div className="flex h-[88px] w-full max-w-12 items-end rounded-t-sm bg-white/[0.035] sm:h-[108px]">
+                      <span
+                        className={cn(
+                          "block w-full rounded-t-sm transition-all duration-300",
+                          period.totalResult > 0 && "bg-emerald-400/80",
+                          period.totalResult < 0 && "bg-red-400/80",
+                          period.totalResult === 0 && "bg-white/10",
+                          isSelected && "brightness-125",
+                        )}
+                        style={{ height: `${barHeight}%` }}
+                      />
+                    </div>
                     <span
                       className={cn(
-                        "block w-full rounded-t-sm transition-all duration-300",
-                        month.totalResult > 0 && "bg-emerald-400/80",
-                        month.totalResult < 0 && "bg-red-400/80",
-                        month.totalResult === 0 && "bg-white/10",
-                        isSelected && "brightness-125",
+                        "text-[10px] uppercase text-[#737c88] transition group-hover:text-white sm:text-xs",
+                        isSelected && "font-semibold text-white",
                       )}
-                      style={{ height: `${barHeight}%` }}
-                    />
-                  </div>
-                  <span
-                    className={cn(
-                      "text-[10px] uppercase text-[#737c88] transition group-hover:text-white sm:text-xs",
-                      isSelected && "font-semibold text-white",
-                    )}
-                  >
-                    {month.shortLabel}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
+                    >
+                      {period.shortLabel}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
 
         <section className="pb-24 pt-5 sm:pb-10 sm:pt-7">
           <div className="flex items-center justify-between gap-3 border-b border-white/[0.08] pb-4">
@@ -192,7 +252,7 @@ export function MonthlyOverviewPage({
                 <button
                   key={coin.symbol}
                   type="button"
-                  onClick={() => onCoinSelect(coin.symbol, selectedMonth)}
+                  onClick={() => onCoinSelect(coin.symbol, selectedRange)}
                   aria-label={`Открыть связки ${coin.symbol} за ${summary.label}`}
                   className="flex min-h-[76px] w-full items-center gap-3 py-3 text-left transition hover:bg-white/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-300/70 sm:min-h-[88px] sm:gap-4 sm:py-4"
                 >
@@ -235,15 +295,42 @@ export function MonthlyOverviewPage({
                   Нет закрытых связок
                 </p>
                 <p className="mt-1 text-xs text-[#7f8894]">
-                  Выберите другой месяц.
+                  Выберите другой период.
                 </p>
               </div>
             </div>
           )}
         </section>
       </section>
+
+      {isTimeframeOpen ? (
+        <AnalyticsTimeframeSheet
+          initialRange={selectedRange}
+          onApply={setSelectedRange}
+          onClose={closeTimeframe}
+        />
+      ) : null}
     </main>
   );
+}
+
+function getOverviewTitle(range: AnalyticsRange) {
+  if (range.timeframe === "day") return "Обзор за день";
+  if (range.timeframe === "quarter") return "Обзор за квартал";
+  if (range.timeframe === "year") return "Обзор за год";
+  if (range.timeframe === "custom") return "Обзор за период";
+  return "Обзор за месяц";
+}
+
+function getPeriodNavigationLabel(
+  range: AnalyticsRange,
+  direction: "previous" | "next",
+) {
+  const prefix = direction === "previous" ? "Предыдущий" : "Следующий";
+  if (range.timeframe === "day") return `${prefix} день`;
+  if (range.timeframe === "quarter") return `${prefix} квартал`;
+  if (range.timeframe === "year") return `${prefix} год`;
+  return `${prefix} месяц`;
 }
 
 function SummaryMetric({
