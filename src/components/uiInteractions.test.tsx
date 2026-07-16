@@ -259,16 +259,20 @@ describe("account interactions", () => {
 describe("trade details interactions", () => {
   it("requires confirmation before deleting and deletes only after confirmation", () => {
     const onDelete = vi.fn();
+    const onEdit = vi.fn();
 
     render(
       <TradeDetailsSheet
         trade={createTrade("delete-1", "SOLUSDT", 8)}
         isOpen
         onClose={() => undefined}
+        onEdit={onEdit}
         onDelete={onDelete}
       />,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "Редактировать" }));
+    expect(onEdit).toHaveBeenCalledOnce();
     expect(screen.queryByRole("alertdialog")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Удалить связку" }));
     expect(screen.getByRole("alertdialog")).not.toBeNull();
@@ -290,6 +294,7 @@ describe("trade details interactions", () => {
         trade={createTrade("close-1", "XRPUSDT", 2)}
         isOpen
         onClose={onClose}
+        onEdit={() => undefined}
         onDelete={() => undefined}
       />,
     );
@@ -302,6 +307,7 @@ describe("trade details interactions", () => {
         trade={createTrade("close-1", "XRPUSDT", 2)}
         isOpen
         onClose={onClose}
+        onEdit={() => undefined}
         onDelete={() => undefined}
       />,
     );
@@ -313,6 +319,7 @@ describe("trade details interactions", () => {
         trade={createTrade("close-1", "XRPUSDT", 2)}
         isOpen
         onClose={onClose}
+        onEdit={() => undefined}
         onDelete={() => undefined}
       />,
     );
@@ -322,6 +329,47 @@ describe("trade details interactions", () => {
     fireEvent.touchMove(header as HTMLElement, { touches: [{ clientY: 140 }] });
     fireEvent.touchEnd(header as HTMLElement, { touches: [] });
     expect(onClose).toHaveBeenCalledTimes(3);
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(4);
+  });
+
+  it("uses Escape to close a nested confirmation before the detail sheet", () => {
+    const onClose = vi.fn();
+
+    render(
+      <TradeDetailsSheet
+        trade={createTrade("escape-1", "BTCUSDT", 4)}
+        isOpen
+        onClose={onClose}
+        onEdit={() => undefined}
+        onDelete={() => undefined}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Удалить связку" }));
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("does not close the detail sheet while an edit dialog handles Escape", () => {
+    const onClose = vi.fn();
+
+    render(
+      <TradeDetailsSheet
+        trade={createTrade("nested-escape", "ETHUSDT", 5)}
+        isOpen
+        isNestedDialogOpen
+        onClose={onClose}
+        onEdit={() => undefined}
+        onDelete={() => undefined}
+      />,
+    );
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
   });
 });
 
@@ -534,6 +582,231 @@ describe("App delete integration", () => {
     });
   });
 });
+
+describe("App manual trade integration", () => {
+  it("opens manual entry from inside the analyzer and Escape closes only that form", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Добавить связку" }));
+    expect(screen.getByRole("dialog", { name: "Анализ связки" })).not.toBeNull();
+    const manualButton = screen.getByRole("button", { name: "Вручную" });
+    const analyzeButton = screen.getByRole("button", { name: "Анализировать" });
+    expect(
+      manualButton.compareDocumentPosition(analyzeButton) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+    fireEvent.click(manualButton);
+    expect(
+      screen.getByRole("dialog", { name: "Добавить связку вручную" }),
+    ).not.toBeNull();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: "Добавить связку вручную" }),
+      ).toBeNull();
+    });
+    expect(screen.getByRole("dialog", { name: "Анализ связки" })).not.toBeNull();
+  });
+
+  it("adds a total-only trade from the analyzer and persists it locally", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Добавить связку" }));
+    fireEvent.click(screen.getByRole("button", { name: "Вручную" }));
+    fireEvent.change(screen.getByLabelText("Монета *"), {
+      target: { value: "ARBUSDT" },
+    });
+    fireEvent.change(screen.getByLabelText("Итог, USDT *"), {
+      target: { value: "12,45" },
+    });
+    selectManualPeriod("2026-07-15T10:00", "2026-07-15T11:30");
+    fireEvent.click(screen.getByRole("button", { name: "Сохранить связку" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByRole("button", { name: "Открыть связку ARBUSDT" }),
+      ).toHaveLength(2);
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: "Добавить связку вручную" }),
+      ).toBeNull();
+      expect(
+        screen.queryByRole("dialog", { name: "Анализ связки" }),
+      ).toBeNull();
+    });
+    const stored = JSON.parse(
+      localStorage.getItem("fund-sync:trade-history:v1") ?? "[]",
+    );
+    expect(stored).toHaveLength(1);
+    expect(stored[0].analysis.bundleType).toBe("Ручной итог");
+    expect(stored[0].calculation.netResult).toBe(12.45);
+    expect(stored[0].analysis.notes).toContain("Добавлено вручную.");
+  });
+
+  it("edits a saved trade in place from its detail sheet", async () => {
+    const originalTrade = createTrade("edit-1", "ADAUSDT", 8);
+    saveTradeHistory([originalTrade]);
+    render(<App />);
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Открыть связку ADAUSDT" })[0],
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Редактировать" }));
+
+    expect(
+      screen.getByRole("dialog", { name: "Редактировать связку" }),
+    ).not.toBeNull();
+    expect((screen.getByLabelText("Монета *") as HTMLInputElement).value).toBe(
+      "ADAUSDT",
+    );
+    expect(
+      (screen.getByLabelText("Начало *") as HTMLInputElement).value,
+    ).toBe("2026-07-14T11:00");
+    expect(
+      (screen.getByLabelText("Окончание *") as HTMLInputElement).value,
+    ).toBe("2026-07-14T12:00");
+
+    fireEvent.change(screen.getByLabelText("Монета *"), {
+      target: { value: "XLMUSDT" },
+    });
+    fireEvent.change(screen.getByLabelText("Итог, USDT *"), {
+      target: { value: "9,75" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Сохранить связку" }));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: "Редактировать связку" }),
+      ).toBeNull();
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: "Информация о связке" }),
+      ).toBeNull();
+    });
+
+    const stored = JSON.parse(
+      localStorage.getItem("fund-sync:trade-history:v1") ?? "[]",
+    );
+    expect(stored).toHaveLength(1);
+    expect(stored[0].id).toBe("edit-1");
+    expect(stored[0].calculation.symbol).toBe("XLMUSDT");
+    expect(stored[0].calculation.netResult).toBe(9.75);
+    expect(stored[0].analysis.notes).toContain("Отредактировано вручную.");
+  });
+
+  it("closes only the editor on Escape and keeps trade details open", async () => {
+    saveTradeHistory([createTrade("edit-escape", "NEARUSDT", 11)]);
+    render(<App />);
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Открыть связку NEARUSDT" })[0],
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Редактировать" }));
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: "Редактировать связку" }),
+      ).toBeNull();
+    });
+    expect(
+      screen.getByRole("dialog", { name: "Информация о связке" }),
+    ).not.toBeNull();
+  });
+
+  it("rejects editing a trade into a duplicate of another saved trade", async () => {
+    const firstTrade = createTrade("duplicate-edit-1", "APTUSDT", 6);
+    const secondTrade = createTrade("duplicate-edit-2", "SUIUSDT", 9);
+    saveTradeHistory([firstTrade, secondTrade]);
+    render(<App />);
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Открыть связку APTUSDT" })[0],
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Редактировать" }));
+    fireEvent.change(screen.getByLabelText("Монета *"), {
+      target: { value: "SUIUSDT" },
+    });
+    fireEvent.change(screen.getByLabelText("Итог, USDT *"), {
+      target: { value: "9" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Сохранить связку" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "уже существует",
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Редактировать связку" }),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("dialog", { name: "Информация о связке" }),
+    ).not.toBeNull();
+    const stored = JSON.parse(
+      localStorage.getItem("fund-sync:trade-history:v1") ?? "[]",
+    );
+    expect(stored).toHaveLength(2);
+    expect(stored.map((trade: SavedTrade) => trade.id)).toContain(
+      "duplicate-edit-1",
+    );
+  });
+
+  it("requires a recognizable period and rejects a duplicate manual trade", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Добавить связку" }));
+    fireEvent.click(screen.getByRole("button", { name: "Вручную" }));
+    fireEvent.change(screen.getByLabelText("Монета *"), {
+      target: { value: "SOLUSDT" },
+    });
+    fireEvent.change(screen.getByLabelText("Итог, USDT *"), {
+      target: { value: "7,5" },
+    });
+    selectManualPeriod("2026-07-15T13:00", "2026-07-15T12:00");
+    fireEvent.click(screen.getByRole("button", { name: "Сохранить связку" }));
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Окончание связки должно быть позже её начала.",
+    );
+
+    selectManualPeriod("2026-07-15T12:00", "2026-07-15T13:00");
+    fireEvent.click(screen.getByRole("button", { name: "Сохранить связку" }));
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: "Добавить связку вручную" }),
+      ).toBeNull();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Добавить связку" }));
+    fireEvent.click(screen.getByRole("button", { name: "Вручную" }));
+    fireEvent.change(screen.getByLabelText("Монета *"), {
+      target: { value: "SOLUSDT" },
+    });
+    fireEvent.change(screen.getByLabelText("Итог, USDT *"), {
+      target: { value: "7,5" },
+    });
+    selectManualPeriod("2026-07-15T12:00", "2026-07-15T13:00");
+    fireEvent.click(screen.getByRole("button", { name: "Сохранить связку" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "уже существует",
+    );
+    expect(
+      JSON.parse(localStorage.getItem("fund-sync:trade-history:v1") ?? "[]"),
+    ).toHaveLength(1);
+  });
+});
+
+function selectManualPeriod(startedAt: string, endedAt: string) {
+  fireEvent.change(screen.getByLabelText("Начало *"), {
+    target: { value: startedAt },
+  });
+  fireEvent.change(screen.getByLabelText("Окончание *"), {
+    target: { value: endedAt },
+  });
+}
 
 function createTrade(id: string, symbol: string, netResult: number): SavedTrade {
   const futurePnl = netResult + 10;

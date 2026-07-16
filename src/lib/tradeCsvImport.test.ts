@@ -325,6 +325,31 @@ BTCUSDT;неизвестно;10;10`);
     }
   });
 
+  it("marks a directly entered trade as manual instead of CSV import", () => {
+    const result = createTradeFromCsvDraft(
+      {
+        symbol: "OPUSDT",
+        period: "15.07.2026 16:00 — 17:00",
+        quantity: "",
+        spreadEntry: "",
+        spreadExit: "",
+        longPnl: "",
+        shortPnl: "",
+        spreadContribution: "",
+        total: "19,25",
+      },
+      2,
+      { requireTotal: true, allowTotalOnly: true, source: "manual" },
+    );
+
+    expect("trade" in result).toBe(true);
+    if ("trade" in result) {
+      expect(result.trade.analysis.notes[0]).toBe("Добавлено вручную.");
+      expect(result.trade.instructions).toBe("Добавлено вручную.");
+      expect(result.trade.calculation.netResult).toBe(19.25);
+    }
+  });
+
   it("parses localized values used by the spreadsheet", () => {
     expect(parseLocalizedNumber("40 000")).toBe(40000);
     expect(parseLocalizedNumber("30,92%")).toBe(30.92);

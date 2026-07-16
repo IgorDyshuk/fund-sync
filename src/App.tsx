@@ -6,6 +6,7 @@ import { CsvImportResultDialog } from "./components/CsvImportResultDialog";
 import { FloatingAddButton } from "./components/FloatingAddButton";
 import { HistoryPage } from "./components/HistoryPage";
 import { HomePage } from "./components/HomePage";
+import { ManualTradeDialog } from "./components/ManualTradeDialog";
 import { TradeDetailsSheet } from "./components/TradeDetailsSheet";
 import { analysisResponseSchema, type AnalysisResponse } from "./lib/analysisSchema";
 import {
@@ -35,6 +36,10 @@ import {
 } from "./lib/tradeHistoryActions";
 import { isFirebaseConfigured } from "./lib/firebaseEnv";
 import { loadTradeHistory, saveTradeHistory } from "./lib/tradeHistory";
+import {
+  createManualTradeDraft,
+  mergeEditedTrade,
+} from "./lib/manualTradeDraft";
 import type { AppStatus, ConflictDraft, SavedTrade } from "./types/app";
 import type { AuthUserSummary } from "./types/auth";
 import { isAnalyzeTimeout, postAnalyze, readApiError } from "./utils/api";
@@ -83,6 +88,8 @@ function App() {
   const [csvImportReport, setCsvImportReport] =
     useState<TradeCsvImportReport | null>(null);
   const [isCsvImportReportOpen, setIsCsvImportReportOpen] = useState(false);
+  const [isManualTradeOpen, setIsManualTradeOpen] = useState(false);
+  const [editingTrade, setEditingTrade] = useState<SavedTrade | null>(null);
   const [isCloudSaving, setIsCloudSaving] = useState(false);
 
   useEffect(() => {
@@ -188,6 +195,10 @@ function App() {
   }, [resultAnalysis]);
 
   const canAnalyze = tradeFiles.length > 0 || Boolean(instructions.trim());
+  const manualTradeInitialValues = useMemo(
+    () => (editingTrade ? createManualTradeDraft(editingTrade) : undefined),
+    [editingTrade],
+  );
 
   function openAnalyzeSheet() {
     clearCloseTimer();
@@ -527,14 +538,146 @@ function App() {
     row: TradeCsvImportRowResult,
     values: TradeCsvImportDraft,
   ) {
+    const { trade, isDuplicate } = await saveTradeDraft(values, {
+      rowNumber: row.row ?? 2,
+      source: "csv",
+    });
+
+    const resolvedRow: TradeCsvImportRowResult = {
+      ...row,
+      symbol: trade.calculation.symbol,
+      period: trade.calculation.period,
+      status: isDuplicate ? "duplicate" : "imported",
+      message: isDuplicate
+        ? "Связка уже существует и была пропущена."
+        : "Заполнено и импортировано вручную.",
+      tradeId: trade.id,
+      values,
+    };
+
+    setCsvImportReport((currentReport) => {
+      if (!currentReport) {
+        return currentReport;
+      }
+
+      return createCsvImportReport(
+        currentReport.fileName,
+        currentReport.rows.map((candidate) =>
+          isSameCsvImportRow(candidate, row) ? resolvedRow : candidate,
+        ),
+      );
+    });
+  }
+
+  async function saveManualTrade(values: TradeCsvImportDraft) {
+    const { isDuplicate } = await saveTradeDraft(values, {
+      rowNumber: 2,
+      source: "manual",
+    });
+
+    if (isDuplicate) {
+      throw new Error(
+        "Связка с такой монетой, периодом и итогом уже существует.",
+      );
+    }
+  }
+
+  async function saveManualTradeAndCloseAnalyzer(
+    values: TradeCsvImportDraft,
+  ) {
+    if (editingTrade) {
+      await updateManualTrade(editingTrade, values);
+      closeTradeDetails();
+      return;
+    }
+
+    await saveManualTrade(values);
+    closeAnalyzeSheet();
+  }
+
+  async function updateManualTrade(
+    originalTrade: SavedTrade,
+    values: TradeCsvImportDraft,
+  ) {
     const {
       createCsvTradeDuplicateKey,
       createTradeFromCsvDraft,
       mergeImportedTrades,
     } = await import("./lib/tradeCsvImport");
-    const result = createTradeFromCsvDraft(values, row.row ?? 2, {
+    const result = createTradeFromCsvDraft(values, 2, {
       requireTotal: true,
       allowTotalOnly: true,
+      source: "manual",
+    });
+
+    if ("message" in result) {
+      throw new Error(result.message);
+    }
+
+    const updatedTrade = mergeEditedTrade(originalTrade, result.trade);
+    const duplicateKey = createCsvTradeDuplicateKey(updatedTrade);
+    const isDuplicate = history.some(
+      (trade) =>
+        trade.id !== originalTrade.id &&
+        createCsvTradeDuplicateKey(trade) === duplicateKey,
+    );
+
+    if (isDuplicate) {
+      throw new Error(
+        "Связка с такой монетой, периодом и итогом уже существует.",
+      );
+    }
+
+    if (authUser) {
+      try {
+        const { saveCloudTrade } = await import("./lib/cloudSync");
+        await saveCloudTrade(updatedTrade);
+      } catch (error) {
+        throw new Error(
+          `Не удалось сохранить в Firestore: ${getSyncErrorMessage(error)}`,
+          { cause: error },
+        );
+      }
+    }
+
+    setHistory((currentHistory) => {
+      const nextHistory = mergeImportedTrades(currentHistory, [updatedTrade]);
+      saveTradeHistory(nextHistory);
+      return nextHistory;
+    });
+    setSelectedTrade((currentTrade) =>
+      currentTrade?.id === originalTrade.id ? updatedTrade : currentTrade,
+    );
+  }
+
+  function openManualTradeDialog() {
+    setEditingTrade(null);
+    setIsManualTradeOpen(true);
+  }
+
+  function openTradeEditor(trade: SavedTrade) {
+    setEditingTrade(trade);
+    setIsManualTradeOpen(true);
+  }
+
+  function closeManualTradeDialog() {
+    setIsManualTradeOpen(false);
+    setEditingTrade(null);
+  }
+
+  async function saveTradeDraft(
+    values: TradeCsvImportDraft,
+    options: { rowNumber: number; source: "csv" | "manual" },
+  ) {
+    const {
+      createCsvTradeDuplicateKey,
+      createTradeFromCsvDraft,
+      mergeImportedTrades,
+    } = await import("./lib/tradeCsvImport");
+    const result = createTradeFromCsvDraft(values, options.rowNumber, {
+      requireTotal: true,
+      allowTotalOnly: true,
+      source: options.source,
     });
 
     if ("message" in result) {
@@ -565,30 +708,7 @@ function App() {
       });
     }
 
-    const resolvedRow: TradeCsvImportRowResult = {
-      ...row,
-      symbol: result.trade.calculation.symbol,
-      period: result.trade.calculation.period,
-      status: isDuplicate ? "duplicate" : "imported",
-      message: isDuplicate
-        ? "Связка уже существует и была пропущена."
-        : "Заполнено и импортировано вручную.",
-      tradeId: result.trade.id,
-      values,
-    };
-
-    setCsvImportReport((currentReport) => {
-      if (!currentReport) {
-        return currentReport;
-      }
-
-      return createCsvImportReport(
-        currentReport.fileName,
-        currentReport.rows.map((candidate) =>
-          isSameCsvImportRow(candidate, row) ? resolvedRow : candidate,
-        ),
-      );
-    });
+    return { trade: result.trade, isDuplicate };
   }
 
   function openAccountDialog() {
@@ -717,12 +837,28 @@ function App() {
 
       <FloatingAddButton onClick={openAnalyzeSheet} />
 
+      <ManualTradeDialog
+        key={editingTrade?.id ?? "new-manual-trade"}
+        isOpen={isManualTradeOpen}
+        title={editingTrade ? "Редактировать связку" : "Добавить связку вручную"}
+        description={
+          editingTrade
+            ? "Измените нужные поля и сохраните обновлённый результат."
+            : "Укажите монету, период и итог по связке. Остальные поля можно оставить пустыми."
+        }
+        initialValues={manualTradeInitialValues}
+        onClose={closeManualTradeDialog}
+        onSave={saveManualTradeAndCloseAnalyzer}
+      />
+
       {isDetailsMounted && selectedTrade ? (
         <TradeDetailsSheet
           trade={selectedTrade}
           isOpen={isDetailsOpen}
           onClose={closeTradeDetails}
+          onEdit={() => openTradeEditor(selectedTrade)}
           onDelete={() => deleteTrade(selectedTrade.id)}
+          isNestedDialogOpen={isManualTradeOpen}
         />
       ) : null}
 
@@ -741,12 +877,14 @@ function App() {
           onFilesChange={setTradeFiles}
           onInstructionsChange={setInstructions}
           onAnalyze={analyzeTrade}
+          onManual={openManualTradeDialog}
           onReset={resetAnalysisState}
           onDraftsChange={setConflictDrafts}
           onApplyConflicts={applyConflicts}
           onDone={completeTrade}
           onRetry={retryAnalysis}
           isSaving={isCloudSaving}
+          isNestedDialogOpen={isManualTradeOpen}
           spotSignPromptOpen={spotSignPromptOpen}
           onSpotSignSelect={applySpotSign}
         />

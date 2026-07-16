@@ -254,7 +254,11 @@ function extractCsvDraft(
 export function createTradeFromCsvDraft(
   values: TradeCsvImportDraft,
   rowNumber: number,
-  options: { requireTotal?: boolean; allowTotalOnly?: boolean } = {},
+  options: {
+    requireTotal?: boolean;
+    allowTotalOnly?: boolean;
+    source?: "csv" | "manual";
+  } = {},
 ): { trade: SavedTrade } | { message: string } {
   const symbol = normalizeSymbol(values.symbol);
   if (!symbol) {
@@ -293,7 +297,8 @@ export function createTradeFromCsvDraft(
         longPnl,
         shortPnl,
       });
-  const notes = ["Импортировано из CSV."];
+  const isManualSource = options.source === "manual";
+  const notes = [isManualSource ? "Добавлено вручную." : "Импортировано из CSV."];
 
   if (isTotalOnly) {
     notes.push("PnL Long и Short не указан; используется ручной итог связки.");
@@ -343,7 +348,9 @@ export function createTradeFromCsvDraft(
       analysis,
       calculation,
       instructions: [
-        `Импортировано из CSV, строка ${rowNumber}.`,
+        isManualSource
+          ? "Добавлено вручную."
+          : `Импортировано из CSV, строка ${rowNumber}.`,
         quantity ? `Количество монет: ${quantity}.` : null,
       ]
         .filter((value): value is string => Boolean(value))

@@ -27,12 +27,14 @@ type AnalyzeSheetProps = {
   onFilesChange: (files: File[]) => void;
   onInstructionsChange: (instructions: string) => void;
   onAnalyze: () => void;
+  onManual?: () => void;
   onReset: () => void;
   onDraftsChange: (drafts: Record<string, ConflictDraft>) => void;
   onApplyConflicts: () => void;
   onDone: () => void | Promise<void>;
   onRetry: () => void;
   isSaving?: boolean;
+  isNestedDialogOpen?: boolean;
   spotSignPromptOpen: boolean;
   onSpotSignSelect: (sign: "positive" | "negative") => void;
 };
@@ -51,12 +53,14 @@ export function AnalyzeSheet({
   onFilesChange,
   onInstructionsChange,
   onAnalyze,
+  onManual,
   onReset,
   onDraftsChange,
   onApplyConflicts,
   onDone,
   onRetry,
   isSaving = false,
+  isNestedDialogOpen = false,
   spotSignPromptOpen,
   onSpotSignSelect,
 }: AnalyzeSheetProps) {
@@ -113,6 +117,10 @@ export function AnalyzeSheet({
         return;
       }
 
+      if (isNestedDialogOpen) {
+        return;
+      }
+
       event.preventDefault();
 
       if (showCloseConfirm) {
@@ -127,7 +135,7 @@ export function AnalyzeSheet({
     window.addEventListener("keydown", handleKeyDown);
 
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose, showCloseConfirm, showDoneActions]);
+  }, [isNestedDialogOpen, isOpen, onClose, showCloseConfirm, showDoneActions]);
 
   function requestClose() {
     if (showDoneActions) {
@@ -244,6 +252,7 @@ export function AnalyzeSheet({
               onFilesChange={onFilesChange}
               onInstructionsChange={onInstructionsChange}
               onAnalyze={onAnalyze}
+              onManual={onManual}
               onReset={onReset}
             />
           </div>

@@ -93,6 +93,7 @@ describe("history UI structure", () => {
         trade={createTrade("details", "BTCUSDT", 20)}
         isOpen
         onClose={() => undefined}
+        onEdit={() => undefined}
         onDelete={() => undefined}
       />,
     );
@@ -102,6 +103,7 @@ describe("history UI structure", () => {
     expect(markup).toContain("Сохранённый результат сделки");
     expect(markup).toContain("Краткая сводка");
     expect(markup).toContain("Заметки по связке");
+    expect(markup).toContain("Редактировать");
     expect(markup).toContain("Удалить связку");
     expect(markup).toContain("max-w-[1050px]");
   });
@@ -112,6 +114,7 @@ describe("history UI structure", () => {
         trade={createTrade("closed", "BTCUSDT", 20)}
         isOpen={false}
         onClose={() => undefined}
+        onEdit={() => undefined}
         onDelete={() => undefined}
       />,
     );

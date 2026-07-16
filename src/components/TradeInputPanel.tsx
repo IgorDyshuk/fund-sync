@@ -4,6 +4,7 @@ import {
   ClipboardCheck,
   Copy,
   Loader2,
+  PencilLine,
   RefreshCcw,
   ShieldCheck,
   Sparkles,
@@ -22,6 +23,7 @@ type TradeInputPanelProps = {
   onFilesChange: (files: File[]) => void;
   onInstructionsChange: (instructions: string) => void;
   onAnalyze: () => void;
+  onManual?: () => void;
   onReset: () => void;
 };
 
@@ -33,6 +35,7 @@ export function TradeInputPanel({
   onFilesChange,
   onInstructionsChange,
   onAnalyze,
+  onManual,
   onReset,
 }: TradeInputPanelProps) {
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
@@ -111,19 +114,32 @@ export function TradeInputPanel({
         ) : null}
 
         <div className="grid gap-2">
-          <button
-            type="button"
-            onClick={onAnalyze}
-            disabled={status === "analyzing"}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-300 px-4 text-sm font-semibold text-[#07110c] transition hover:bg-emerald-200 disabled:bg-white/10 disabled:text-white/40 lg:min-h-10"
-          >
-            {status === "analyzing" ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4" />
-            )}
-            Анализировать
-          </button>
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2">
+            {onManual ? (
+              <button
+                type="button"
+                onClick={onManual}
+                disabled={status === "analyzing"}
+                className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-white/10 px-3 text-xs font-semibold text-[#c5ccd6] transition hover:bg-white/[0.06] hover:text-white disabled:opacity-40 lg:min-h-10"
+              >
+                <PencilLine className="h-3.5 w-3.5" />
+                Вручную
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={onAnalyze}
+              disabled={status === "analyzing"}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-300 px-4 text-sm font-semibold text-[#07110c] transition hover:bg-emerald-200 disabled:bg-white/10 disabled:text-white/40 lg:min-h-10"
+            >
+              {status === "analyzing" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              Анализировать
+            </button>
+          </div>
           <button
             type="button"
             onClick={onReset}

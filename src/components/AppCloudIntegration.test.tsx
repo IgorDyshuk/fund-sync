@@ -582,6 +582,135 @@ SOLUSDT;неизвестно;7,5`;
     ).toHaveLength(1);
   });
 
+  it("saves a manually added total-only trade to Firestore and local history", async () => {
+    render(<App />);
+    await screen.findByRole("button", { name: "Открыть личный кабинет" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Добавить связку" }));
+    fireEvent.click(screen.getByRole("button", { name: "Вручную" }));
+    fireEvent.change(screen.getByLabelText("Монета *"), {
+      target: { value: "OPUSDT" },
+    });
+    fireEvent.change(screen.getByLabelText("Итог, USDT *"), {
+      target: { value: "19,25" },
+    });
+    selectManualPeriod("2026-07-15T16:00", "2026-07-15T17:00");
+    fireEvent.click(screen.getByRole("button", { name: "Сохранить связку" }));
+
+    await waitFor(() => expect(cloudMocks.saveCloudTrade).toHaveBeenCalledOnce());
+    const savedTrade = cloudMocks.saveCloudTrade.mock.calls[0][0] as SavedTrade;
+    expect(savedTrade.calculation.symbol).toBe("OPUSDT");
+    expect(savedTrade.calculation.netResult).toBe(19.25);
+    expect(savedTrade.analysis.notes).toContain("Добавлено вручную.");
+    expect(
+      JSON.parse(localStorage.getItem("fund-sync:trade-history:v1") ?? "[]"),
+    ).toHaveLength(1);
+  });
+
+  it("updates an existing cloud trade without changing its id", async () => {
+    const originalTrade = createTrade(
+      "cloud-edit-1",
+      "ATOMUSDT",
+      "2026-07-15T17:00:00.000Z",
+    );
+    cloudMocks.syncUserHistory.mockResolvedValue([originalTrade]);
+    render(<App />);
+
+    fireEvent.click(
+      (
+        await screen.findAllByRole("button", {
+          name: "Открыть связку ATOMUSDT",
+        })
+      )[0],
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Редактировать" }));
+    fireEvent.change(screen.getByLabelText("Итог, USDT *"), {
+      target: { value: "21,5" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Сохранить связку" }));
+
+    await waitFor(() => expect(cloudMocks.saveCloudTrade).toHaveBeenCalledOnce());
+    const updatedTrade = cloudMocks.saveCloudTrade.mock.calls[0][0] as SavedTrade;
+    expect(updatedTrade.id).toBe("cloud-edit-1");
+    expect(updatedTrade.calculation.netResult).toBe(21.5);
+    expect(
+      JSON.parse(localStorage.getItem("fund-sync:trade-history:v1") ?? "[]"),
+    ).toHaveLength(1);
+  });
+
+  it("keeps the editor and details open when a cloud update fails", async () => {
+    const originalTrade = createTrade(
+      "cloud-edit-failure",
+      "UNIUSDT",
+      "2026-07-15T17:00:00.000Z",
+    );
+    cloudMocks.syncUserHistory.mockResolvedValue([originalTrade]);
+    cloudMocks.saveCloudTrade.mockRejectedValue({
+      code: "firestore/permission-denied",
+    });
+    render(<App />);
+
+    fireEvent.click(
+      (
+        await screen.findAllByRole("button", {
+          name: "Открыть связку UNIUSDT",
+        })
+      )[0],
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Редактировать" }));
+    fireEvent.change(screen.getByLabelText("Итог, USDT *"), {
+      target: { value: "30" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Сохранить связку" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Firestore отклонил доступ",
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Редактировать связку" }),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("dialog", { name: "Информация о связке" }),
+    ).not.toBeNull();
+    const stored = JSON.parse(
+      localStorage.getItem("fund-sync:trade-history:v1") ?? "[]",
+    );
+    expect(stored).toHaveLength(1);
+    expect(stored[0].id).toBe("cloud-edit-failure");
+    expect(stored[0].calculation.netResult).toBe(
+      originalTrade.calculation.netResult,
+    );
+  });
+
+  it("keeps the manual dialog open when Firestore rejects a new trade", async () => {
+    cloudMocks.saveCloudTrade.mockRejectedValue({
+      code: "firestore/permission-denied",
+    });
+    render(<App />);
+    await screen.findByRole("button", { name: "Открыть личный кабинет" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Добавить связку" }));
+    fireEvent.click(screen.getByRole("button", { name: "Вручную" }));
+    fireEvent.change(screen.getByLabelText("Монета *"), {
+      target: { value: "TIAUSDT" },
+    });
+    fireEvent.change(screen.getByLabelText("Итог, USDT *"), {
+      target: { value: "4,2" },
+    });
+    selectManualPeriod("2026-07-15T18:00", "2026-07-15T19:00");
+    fireEvent.click(screen.getByRole("button", { name: "Сохранить связку" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Firestore отклонил доступ",
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Добавить связку вручную" }),
+    ).not.toBeNull();
+    expect(
+      JSON.parse(localStorage.getItem("fund-sync:trade-history:v1") ?? "[]"),
+    ).toHaveLength(0);
+  });
+
   it("animates the account dialog out, signs out and clears private local history", async () => {
     const trade = createTrade("private", "XRPUSDT", "2026-07-15T10:00:00.000Z");
     cloudMocks.syncUserHistory.mockResolvedValue([trade]);
@@ -617,10 +746,25 @@ SOLUSDT;неизвестно;7,5`;
   });
 });
 
+function selectManualPeriod(startedAt: string, endedAt: string) {
+  fireEvent.change(screen.getByLabelText("Начало *"), {
+    target: { value: startedAt },
+  });
+  fireEvent.change(screen.getByLabelText("Окончание *"), {
+    target: { value: endedAt },
+  });
+}
+
 function createTrade(id: string, symbol: string, savedAt: string): SavedTrade {
   const analysis = {
     bundleType: "Фьючерс + Спот",
-    future: { symbol, volumeUsdt: 1000, realizedPnlUsdt: 10 },
+    future: {
+      symbol,
+      startedAt: "15.07.2026 16:00",
+      endedAt: "15.07.2026 17:00",
+      volumeUsdt: 1000,
+      realizedPnlUsdt: 10,
+    },
     spot: { volumeUsdt: 1000, rawPnlUsdt: 5 },
     legs: [],
     conflicts: [],

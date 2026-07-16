@@ -1,4 +1,4 @@
-import { AlertTriangle, Trash2, X } from "lucide-react";
+import { AlertTriangle, PencilLine, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState, type TouchEvent } from "react";
 import type { SavedTrade } from "../types/app";
 import { cn } from "../utils/cn";
@@ -8,33 +8,44 @@ type TradeDetailsSheetProps = {
   trade: SavedTrade;
   isOpen: boolean;
   onClose: () => void;
+  onEdit: () => void;
   onDelete: () => void;
+  isNestedDialogOpen?: boolean;
 };
 
 export function TradeDetailsSheet({
   trade,
   isOpen,
   onClose,
+  onEdit,
   onDelete,
+  isNestedDialogOpen = false,
 }: TradeDetailsSheetProps) {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const swipeStartYRef = useRef<number | null>(null);
   const swipeLastYRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!isDeleteConfirmOpen) {
+    if (!isOpen) {
       return;
     }
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
+      if (event.key !== "Escape" || event.repeat || isNestedDialogOpen) {
+        return;
+      }
+
+      event.preventDefault();
+      if (isDeleteConfirmOpen) {
         setIsDeleteConfirmOpen(false);
+      } else {
+        onClose();
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isDeleteConfirmOpen]);
+  }, [isDeleteConfirmOpen, isNestedDialogOpen, isOpen, onClose]);
 
   function handleSwipeStart(event: TouchEvent<HTMLElement>) {
     if (event.touches.length !== 1) {
@@ -125,11 +136,19 @@ export function TradeDetailsSheet({
           </section>
         </div>
 
-        <footer className="shrink-0 border-t border-white/10 bg-[#0d0f14] p-3 sm:flex sm:justify-end">
+        <footer className="grid shrink-0 grid-cols-2 gap-2 border-t border-white/10 bg-[#0d0f14] p-3 sm:flex sm:justify-end">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-white/10 px-3 text-sm font-medium text-[#c5ccd6] transition hover:bg-white/[0.06] hover:text-white sm:min-w-40"
+          >
+            <PencilLine className="h-4 w-4" />
+            Редактировать
+          </button>
           <button
             type="button"
             onClick={() => setIsDeleteConfirmOpen(true)}
-            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-red-300/25 px-4 text-sm font-medium text-red-100 transition hover:bg-red-400/10 hover:text-white sm:w-auto sm:min-w-40"
+            className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-red-300/25 px-3 text-sm font-medium text-red-100 transition hover:bg-red-400/10 hover:text-white sm:min-w-40"
           >
             <Trash2 className="h-4 w-4" />
             Удалить связку
