@@ -4,10 +4,13 @@ import App from "../App";
 import { FloatingAddButton } from "./FloatingAddButton";
 import { HistoryPage } from "./HistoryPage";
 import { HomePage } from "./HomePage";
+import { MonthlyCoinTradesPage } from "./MonthlyCoinTradesPage";
+import { MonthlyOverviewPage } from "./MonthlyOverviewPage";
 import { TradeDetailsSheet } from "./TradeDetailsSheet";
 import { TradeHistoryRow } from "./TradeHistoryRow";
 import { calculateTrade } from "../lib/tradeCalculator";
 import type { AnalysisResponse } from "../lib/analysisSchema";
+import { createAnalyticsRange } from "../lib/monthlyAnalytics";
 import type { SavedTrade } from "../types/app";
 
 describe("history UI structure", () => {
@@ -63,6 +66,38 @@ describe("history UI structure", () => {
     expect(markup).toContain("text-red-200");
     expect(markup).toContain('aria-label="Удалить все связки"');
     expect(markup).toContain("Удалить всю историю?");
+  });
+
+  it("keeps every secondary page header sticky", () => {
+    const historyMarkup = renderToStaticMarkup(
+      <HistoryPage
+        history={[]}
+        onBack={() => undefined}
+        onTradeSelect={() => undefined}
+      />,
+    );
+    const overviewMarkup = renderToStaticMarkup(
+      <MonthlyOverviewPage
+        history={[]}
+        onBack={() => undefined}
+        onCoinSelect={() => undefined}
+      />,
+    );
+    const coinMarkup = renderToStaticMarkup(
+      <MonthlyCoinTradesPage
+        history={[]}
+        symbol="BTCUSDT"
+        range={createAnalyticsRange("month", new Date(2026, 6, 1))}
+        onBack={() => undefined}
+        onTradeSelect={() => undefined}
+      />,
+    );
+
+    for (const markup of [historyMarkup, overviewMarkup, coinMarkup]) {
+      expect(markup).toContain("sticky top-0 z-30");
+      expect(markup).toContain("backdrop-blur-xl");
+      expect(markup).toContain("border-b border-white/[0.08]");
+    }
   });
 
   it("keeps the row compact, clickable and strips the quote suffix from symbols", () => {

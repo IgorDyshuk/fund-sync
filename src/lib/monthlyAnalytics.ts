@@ -101,7 +101,6 @@ export function createTradeRangeSummary(
     }))
     .sort(
       (first, second) =>
-        Math.abs(second.result) - Math.abs(first.result) ||
         second.result - first.result ||
         first.symbol.localeCompare(second.symbol),
     );

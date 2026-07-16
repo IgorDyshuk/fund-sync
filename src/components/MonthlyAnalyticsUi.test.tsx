@@ -82,6 +82,41 @@ describe("monthly analytics UI", () => {
     expect(screen.queryByText("FIVEUSDT")).toBeNull();
   });
 
+  it("shows profits before losses in both monthly result views", () => {
+    const history = [
+      createTrade("large-loss", "LOSS73USDT", -73, "10.07.2026 12:00"),
+      createTrade("profit", "PROFIT63USDT", 63, "11.07.2026 12:00"),
+      createTrade("small-loss", "LOSS5USDT", -5, "12.07.2026 12:00"),
+      createTrade("small-profit", "PROFIT10USDT", 10, "13.07.2026 12:00"),
+    ];
+    const expectedOrder = [
+      "PROFIT63USDT",
+      "PROFIT10USDT",
+      "LOSS5USDT",
+      "LOSS73USDT",
+    ];
+
+    const widget = render(
+      <MonthlyPerformanceWidget
+        history={history}
+        monthDate={new Date(2026, 6, 1)}
+        onOpen={() => undefined}
+      />,
+    );
+    expectSymbolsInOrder(widget.container.textContent ?? "", expectedOrder);
+    widget.unmount();
+
+    const overview = render(
+      <MonthlyOverviewPage
+        history={history}
+        initialMonth={new Date(2026, 6, 1)}
+        onBack={() => undefined}
+        onCoinSelect={() => undefined}
+      />,
+    );
+    expectSymbolsInOrder(overview.container.textContent ?? "", expectedOrder);
+  });
+
   it("renders monthly totals, losses and all grouped coins", () => {
     render(
       <MonthlyOverviewPage
@@ -526,4 +561,10 @@ function createTrade(
 function expectDateFields(from: string, to: string) {
   expect((screen.getByLabelText("От") as HTMLInputElement).value).toBe(from);
   expect((screen.getByLabelText("До") as HTMLInputElement).value).toBe(to);
+}
+
+function expectSymbolsInOrder(content: string, symbols: string[]) {
+  const positions = symbols.map((symbol) => content.indexOf(symbol));
+  expect(positions.every((position) => position >= 0)).toBe(true);
+  expect(positions).toEqual([...positions].sort((first, second) => first - second));
 }

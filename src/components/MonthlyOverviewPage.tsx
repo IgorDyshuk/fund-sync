@@ -85,8 +85,8 @@ export function MonthlyOverviewPage({
 
   return (
     <main className="min-h-full bg-[#08090d] text-[#e7e9ee]">
-      <section className="mx-auto min-h-full w-full max-w-[1120px] px-[15px] py-3 sm:px-5 sm:py-6 lg:px-8 lg:py-10">
-        <header className="grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-3 sm:gap-4">
+      <section className="mx-auto min-h-full w-full max-w-[1120px] px-[15px] pb-3 sm:px-5 sm:pb-6 lg:px-8 lg:pb-10">
+        <header className="sticky top-0 z-30 -mx-[15px] grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-3 border-b border-white/[0.08] bg-[#08090d]/95 px-[15px] py-3 backdrop-blur-xl sm:-mx-5 sm:gap-4 sm:px-5 sm:py-4 lg:-mx-8 lg:px-8">
           <button
             type="button"
             onClick={onBack}

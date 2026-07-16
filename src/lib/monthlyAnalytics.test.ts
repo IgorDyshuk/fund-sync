@@ -91,6 +91,25 @@ describe("monthlyAnalytics", () => {
     expect(summary.coins[1].sharePercent).toBe(25);
   });
 
+  it("sorts coin results by signed value instead of absolute size", () => {
+    const summary = createMonthlyTradeSummary(
+      [
+        createTrade("large-loss", "LOSS73USDT", -73, "10.07.2026 10:00"),
+        createTrade("profit", "PROFIT63USDT", 63, "11.07.2026 10:00"),
+        createTrade("small-loss", "LOSS5USDT", -5, "12.07.2026 10:00"),
+        createTrade("zero", "ZEROUSDT", 0, "13.07.2026 10:00"),
+      ],
+      new Date(2026, 6, 1),
+    );
+
+    expect(summary.coins.map((coin) => [coin.symbol, coin.result])).toEqual([
+      ["PROFIT63USDT", 63],
+      ["ZEROUSDT", 0],
+      ["LOSS5USDT", -5],
+      ["LOSS73USDT", -73],
+    ]);
+  });
+
   it("creates a chronological series ending at the selected month", () => {
     const series = createMonthlySeries([], new Date(2026, 6, 1), 3);
 
