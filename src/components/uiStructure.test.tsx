@@ -46,6 +46,7 @@ describe("history UI structure", () => {
         ]}
         onBack={() => undefined}
         onTradeSelect={() => undefined}
+        onDeleteAll={() => undefined}
       />,
     );
 
@@ -57,6 +58,8 @@ describe("history UI structure", () => {
     expect(markup).toContain("OLDUSDT");
     expect(markup).toContain("text-emerald-200");
     expect(markup).toContain("text-red-200");
+    expect(markup).toContain('aria-label="Удалить все связки"');
+    expect(markup).toContain("Удалить всю историю?");
   });
 
   it("keeps the row compact, clickable and strips the quote suffix from symbols", () => {

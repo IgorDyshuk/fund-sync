@@ -96,4 +96,75 @@ describe("AccountDialog", () => {
       ).toHaveProperty("disabled", false);
     });
   });
+
+  it("selects a CSV file without rendering the import report inside the account", async () => {
+    const onImportCsv = vi.fn().mockResolvedValue(undefined);
+    render(
+      <AccountDialog
+        isOpen
+        user={user}
+        onClose={() => undefined}
+        onLogout={() => undefined}
+        onImportCsv={onImportCsv}
+      />,
+    );
+
+    const file = new File(["Монета;Период"], "history.csv", {
+      type: "text/csv",
+    });
+    fireEvent.change(screen.getByLabelText("Выбрать CSV с историей"), {
+      target: { files: [file] },
+    });
+
+    await waitFor(() => expect(onImportCsv).toHaveBeenCalledWith(file));
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Импортировать CSV" }),
+      ).toHaveProperty("disabled", false);
+    });
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("locks account actions while a CSV file is being imported", async () => {
+    let finishImport: (() => void) | undefined;
+    const onClose = vi.fn();
+    const onImportCsv = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishImport = resolve;
+        }),
+    );
+    const { container } = render(
+      <AccountDialog
+        isOpen
+        user={user}
+        onClose={onClose}
+        onLogout={() => undefined}
+        onImportCsv={onImportCsv}
+      />,
+    );
+    const file = new File(["data"], "history.csv", { type: "text/csv" });
+
+    fireEvent.change(screen.getByLabelText("Выбрать CSV с историей"), {
+      target: { files: [file] },
+    });
+
+    expect(
+      screen.getByRole("button", { name: "Импортируем..." }),
+    ).toHaveProperty("disabled", true);
+    expect(
+      screen.getByRole("button", { name: "Закрыть личный кабинет" }),
+    ).toHaveProperty("disabled", true);
+    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.click(container.firstElementChild as HTMLElement);
+    expect(onClose).not.toHaveBeenCalled();
+
+    finishImport?.();
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Импортировать CSV" }),
+      ).toHaveProperty("disabled", false);
+    });
+  });
 });

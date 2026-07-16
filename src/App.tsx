@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AnalyzeSheet } from "./components/AnalyzeSheet";
 import { AccountDialog } from "./components/AccountDialog";
 import { AuthDialog } from "./components/AuthDialog";
+import { CsvImportResultDialog } from "./components/CsvImportResultDialog";
 import { FloatingAddButton } from "./components/FloatingAddButton";
 import { HistoryPage } from "./components/HistoryPage";
 import { HomePage } from "./components/HomePage";
@@ -23,6 +24,11 @@ import {
 } from "./lib/manualInstructions";
 import { wait, withTimeout } from "./lib/asyncUtils";
 import { getSyncErrorMessage } from "./lib/syncErrors";
+import type {
+  TradeCsvImportDraft,
+  TradeCsvImportReport,
+  TradeCsvImportRowResult,
+} from "./lib/tradeCsvImport";
 import {
   prependSavedTrade,
   removeSavedTrade,
@@ -37,6 +43,7 @@ import { cn } from "./utils/cn";
 const sheetAnimationMs = 300;
 const authDialogAnimationMs = 200;
 const accountDialogAnimationMs = 220;
+const csvImportDialogAnimationMs = 200;
 const initialCloudSyncTimeoutMs = 15_000;
 
 function App() {
@@ -44,6 +51,7 @@ function App() {
   const detailCloseTimerRef = useRef<number | null>(null);
   const accountCloseTimerRef = useRef<number | null>(null);
   const authCloseTimerRef = useRef<number | null>(null);
+  const csvImportCloseTimerRef = useRef<number | null>(null);
   const requestTokenRef = useRef(0);
   const hadAuthenticatedSessionRef = useRef(false);
   const [history, setHistory] = useState<SavedTrade[]>(() => loadTradeHistory());
@@ -72,6 +80,9 @@ function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isAccountMounted, setIsAccountMounted] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
+  const [csvImportReport, setCsvImportReport] =
+    useState<TradeCsvImportReport | null>(null);
+  const [isCsvImportReportOpen, setIsCsvImportReportOpen] = useState(false);
   const [isCloudSaving, setIsCloudSaving] = useState(false);
 
   useEffect(() => {
@@ -218,6 +229,31 @@ function App() {
       return nextHistory;
     });
     closeTradeDetails();
+  }
+
+  async function deleteAllTrades() {
+    setAuthError(null);
+    const tradeIds = history.map((trade) => trade.id);
+
+    if (authUser) {
+      try {
+        const { deleteCloudTrade } = await import("./lib/cloudSync");
+        for (let index = 0; index < tradeIds.length; index += 20) {
+          await Promise.all(
+            tradeIds
+              .slice(index, index + 20)
+              .map((tradeId) => deleteCloudTrade(tradeId)),
+          );
+        }
+      } catch (error) {
+        const message = getSyncErrorMessage(error);
+        setAuthError(message);
+        throw new Error(message, { cause: error });
+      }
+    }
+
+    saveTradeHistory([]);
+    setHistory([]);
   }
 
   function closeAnalyzeSheet() {
@@ -391,6 +427,170 @@ function App() {
     }
   }
 
+  async function importTradeHistoryCsv(file: File): Promise<void> {
+    let report: TradeCsvImportReport;
+
+    try {
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error("CSV слишком большой. Максимальный размер файла — 5 МБ.");
+      }
+
+      const csvText = await file.text();
+      const { mergeImportedTrades, parseTradeCsv } = await import(
+        "./lib/tradeCsvImport"
+      );
+      const parsed = parseTradeCsv(csvText, history);
+      let rows = parsed.rows;
+      let importedTrades = parsed.trades;
+
+      if (authUser && importedTrades.length > 0) {
+        const { saveCloudTrade } = await import("./lib/cloudSync");
+        const failedTrades = new Map<string, string>();
+
+        for (let index = 0; index < importedTrades.length; index += 20) {
+          const chunk = importedTrades.slice(index, index + 20);
+          const results = await Promise.allSettled(
+            chunk.map((trade) => saveCloudTrade(trade)),
+          );
+
+          results.forEach((result, resultIndex) => {
+            if (result.status === "rejected") {
+              failedTrades.set(
+                chunk[resultIndex].id,
+                `Не удалось сохранить в Firestore: ${getSyncErrorMessage(result.reason)}`,
+              );
+            }
+          });
+        }
+
+        if (failedTrades.size > 0) {
+          importedTrades = importedTrades.filter(
+            (trade) => !failedTrades.has(trade.id),
+          );
+          rows = rows.map((row): TradeCsvImportRowResult => {
+            const failure = row.tradeId ? failedTrades.get(row.tradeId) : null;
+            return failure
+              ? {
+                  ...row,
+                  status: "error",
+                  message: failure,
+                }
+              : row;
+          });
+        }
+      }
+
+      if (importedTrades.length > 0) {
+        setHistory((currentHistory) => {
+          const nextHistory = mergeImportedTrades(currentHistory, importedTrades);
+          saveTradeHistory(nextHistory);
+          return nextHistory;
+        });
+      }
+
+      report = createCsvImportReport(file.name, rows);
+    } catch (error) {
+      report = createCsvImportReport(file.name, [
+        {
+          row: null,
+          symbol: null,
+          period: null,
+          status: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Не удалось прочитать или импортировать CSV.",
+        },
+      ]);
+    }
+
+    closeAccountDialog();
+    await wait(accountDialogAnimationMs);
+    openCsvImportResultDialog(report);
+  }
+
+  function openCsvImportResultDialog(report: TradeCsvImportReport) {
+    clearCsvImportCloseTimer();
+    setCsvImportReport(report);
+    window.requestAnimationFrame(() => setIsCsvImportReportOpen(true));
+  }
+
+  function closeCsvImportResultDialog() {
+    clearCsvImportCloseTimer();
+    setIsCsvImportReportOpen(false);
+    csvImportCloseTimerRef.current = window.setTimeout(() => {
+      setCsvImportReport(null);
+    }, csvImportDialogAnimationMs);
+  }
+
+  async function resolveCsvImportRow(
+    row: TradeCsvImportRowResult,
+    values: TradeCsvImportDraft,
+  ) {
+    const {
+      createCsvTradeDuplicateKey,
+      createTradeFromCsvDraft,
+      mergeImportedTrades,
+    } = await import("./lib/tradeCsvImport");
+    const result = createTradeFromCsvDraft(values, row.row ?? 2, {
+      requireTotal: true,
+      allowTotalOnly: true,
+    });
+
+    if ("message" in result) {
+      throw new Error(result.message);
+    }
+
+    const duplicateKey = createCsvTradeDuplicateKey(result.trade);
+    const isDuplicate = history.some(
+      (trade) => createCsvTradeDuplicateKey(trade) === duplicateKey,
+    );
+    if (!isDuplicate && authUser) {
+      try {
+        const { saveCloudTrade } = await import("./lib/cloudSync");
+        await saveCloudTrade(result.trade);
+      } catch (error) {
+        throw new Error(
+          `Не удалось сохранить в Firestore: ${getSyncErrorMessage(error)}`,
+          { cause: error },
+        );
+      }
+    }
+
+    if (!isDuplicate) {
+      setHistory((currentHistory) => {
+        const nextHistory = mergeImportedTrades(currentHistory, [result.trade]);
+        saveTradeHistory(nextHistory);
+        return nextHistory;
+      });
+    }
+
+    const resolvedRow: TradeCsvImportRowResult = {
+      ...row,
+      symbol: result.trade.calculation.symbol,
+      period: result.trade.calculation.period,
+      status: isDuplicate ? "duplicate" : "imported",
+      message: isDuplicate
+        ? "Связка уже существует и была пропущена."
+        : "Заполнено и импортировано вручную.",
+      tradeId: result.trade.id,
+      values,
+    };
+
+    setCsvImportReport((currentReport) => {
+      if (!currentReport) {
+        return currentReport;
+      }
+
+      return createCsvImportReport(
+        currentReport.fileName,
+        currentReport.rows.map((candidate) =>
+          isSameCsvImportRow(candidate, row) ? resolvedRow : candidate,
+        ),
+      );
+    });
+  }
+
   function openAccountDialog() {
     clearAccountCloseTimer();
     setIsAccountMounted(true);
@@ -470,6 +670,13 @@ function App() {
     }
   }
 
+  function clearCsvImportCloseTimer() {
+    if (csvImportCloseTimerRef.current !== null) {
+      window.clearTimeout(csvImportCloseTimerRef.current);
+      csvImportCloseTimerRef.current = null;
+    }
+  }
+
   return (
     <div className="relative h-[100svh] overflow-hidden">
       <div
@@ -504,6 +711,7 @@ function App() {
           history={history}
           onBack={() => setIsHistoryPage(false)}
           onTradeSelect={openTradeDetails}
+          onDeleteAll={deleteAllTrades}
         />
       </div>
 
@@ -558,9 +766,43 @@ function App() {
           user={authUser}
           onClose={closeAccountDialog}
           onLogout={handleLogout}
+          onImportCsv={importTradeHistoryCsv}
+        />
+      ) : null}
+
+      {csvImportReport ? (
+        <CsvImportResultDialog
+          isOpen={isCsvImportReportOpen}
+          report={csvImportReport}
+          onClose={closeCsvImportResultDialog}
+          onResolveRow={resolveCsvImportRow}
         />
       ) : null}
     </div>
+  );
+}
+
+function createCsvImportReport(
+  fileName: string,
+  rows: TradeCsvImportRowResult[],
+): TradeCsvImportReport {
+  return {
+    fileName,
+    importedCount: rows.filter((row) => row.status === "imported").length,
+    duplicateCount: rows.filter((row) => row.status === "duplicate").length,
+    invalidCount: rows.filter((row) => row.status === "error").length,
+    rows,
+  };
+}
+
+function isSameCsvImportRow(
+  candidate: TradeCsvImportRowResult,
+  target: TradeCsvImportRowResult,
+) {
+  return (
+    candidate.row === target.row &&
+    candidate.status === target.status &&
+    candidate.message === target.message
   );
 }
 

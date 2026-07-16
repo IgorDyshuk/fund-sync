@@ -106,6 +106,108 @@ describe("history screen interactions", () => {
     fireEvent.click(screen.getByRole("button", { name: "Открыть связку ETHUSDT" }));
     expect(onHistorySelect).toHaveBeenCalledWith(trade);
   });
+
+  it("deletes all history only after confirmation", async () => {
+    const onDeleteAll = vi.fn().mockResolvedValue(undefined);
+    render(
+      <HistoryPage
+        history={[
+          createTrade("first", "BTCUSDT", 10),
+          createTrade("second", "ETHUSDT", -5),
+        ]}
+        onBack={() => undefined}
+        onTradeSelect={() => undefined}
+        onDeleteAll={onDeleteAll}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Удалить все связки" }));
+    expect(screen.getByRole("alertdialog")).not.toBeNull();
+    expect(onDeleteAll).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Отмена" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Удалить все связки" }));
+    fireEvent.click(screen.getByRole("button", { name: "Удалить всё" }));
+
+    await waitFor(() => expect(onDeleteAll).toHaveBeenCalledOnce());
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+  });
+
+  it("keeps the delete-all confirmation open when deletion fails", async () => {
+    render(
+      <HistoryPage
+        history={[createTrade("first", "BTCUSDT", 10)]}
+        onBack={() => undefined}
+        onTradeSelect={() => undefined}
+        onDeleteAll={() => Promise.reject(new Error("Firestore недоступен"))}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Удалить все связки" }));
+    fireEvent.click(screen.getByRole("button", { name: "Удалить всё" }));
+
+    expect(await screen.findByRole("alert")).not.toBeNull();
+    expect(screen.getByRole("alert").textContent).toBe("Firestore недоступен");
+    expect(screen.getByRole("alertdialog")).not.toBeNull();
+  });
+
+  it("closes the delete-all confirmation from Escape and the backdrop", () => {
+    render(
+      <HistoryPage
+        history={[createTrade("first", "BTCUSDT", 10)]}
+        onBack={() => undefined}
+        onTradeSelect={() => undefined}
+        onDeleteAll={() => undefined}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Удалить все связки" }));
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Удалить все связки" }));
+    const dialog = screen.getByRole("alertdialog");
+    fireEvent.click(dialog.parentElement as HTMLElement);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("prevents closing or repeating delete-all while deletion is pending", async () => {
+    let finishDeletion: (() => void) | undefined;
+    const onDeleteAll = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishDeletion = resolve;
+        }),
+    );
+    render(
+      <HistoryPage
+        history={[createTrade("first", "BTCUSDT", 10)]}
+        onBack={() => undefined}
+        onTradeSelect={() => undefined}
+        onDeleteAll={onDeleteAll}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Удалить все связки" }));
+    fireEvent.click(screen.getByRole("button", { name: "Удалить всё" }));
+    expect(screen.getByRole("button", { name: "Удаляем..." })).toHaveProperty(
+      "disabled",
+      true,
+    );
+    expect(screen.getByRole("button", { name: "Отмена" })).toHaveProperty(
+      "disabled",
+      true,
+    );
+    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Удаляем..." }));
+    expect(onDeleteAll).toHaveBeenCalledOnce();
+    expect(screen.getByRole("alertdialog")).not.toBeNull();
+
+    finishDeletion?.();
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+  });
 });
 
 describe("account interactions", () => {

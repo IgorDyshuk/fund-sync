@@ -1,5 +1,5 @@
-import { LogOut, Mail, UserRound, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { FileSpreadsheet, LoaderCircle, LogOut, Mail, Upload, UserRound, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import type { AuthUserSummary } from "../types/auth";
 
 type AccountDialogProps = {
@@ -7,6 +7,7 @@ type AccountDialogProps = {
   user: AuthUserSummary;
   onClose: () => void;
   onLogout: () => void | Promise<void>;
+  onImportCsv?: (file: File) => Promise<void>;
 };
 
 export function AccountDialog({
@@ -14,8 +15,12 @@ export function AccountDialog({
   user,
   onClose,
   onLogout,
+  onImportCsv,
 }: AccountDialogProps) {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const isBusy = isLoggingOut || isImporting;
 
   useEffect(() => {
     if (!isOpen) {
@@ -23,14 +28,14 @@ export function AccountDialog({
     }
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape" && !isLoggingOut) {
+      if (event.key === "Escape" && !isBusy) {
         onClose();
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isLoggingOut, isOpen, onClose]);
+  }, [isBusy, isOpen, onClose]);
 
   async function logout() {
     setIsLoggingOut(true);
@@ -41,13 +46,29 @@ export function AccountDialog({
     }
   }
 
+  async function importCsv(file: File | undefined) {
+    if (!file || !onImportCsv) {
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      await onImportCsv(file);
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  }
+
   return (
     <div
       aria-hidden={!isOpen}
       className={`fixed inset-0 z-[95] grid place-items-center bg-black/75 p-4 transition-opacity duration-200 ease-out ${
         isOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
       }`}
-      onClick={isLoggingOut ? undefined : onClose}
+      onClick={isBusy ? undefined : onClose}
     >
       <section
         role="dialog"
@@ -75,7 +96,7 @@ export function AccountDialog({
           <button
             type="button"
             onClick={onClose}
-            disabled={isLoggingOut}
+            disabled={isBusy}
             aria-label="Закрыть личный кабинет"
             className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 text-[#b9c0ca] transition hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
           >
@@ -93,10 +114,46 @@ export function AccountDialog({
           </div>
         </div>
 
+        {onImportCsv ? (
+          <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.025] p-3">
+            <div className="flex items-center gap-3">
+              <div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/15">
+                <FileSpreadsheet className="h-4 w-4 text-emerald-300" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-white">История из таблицы</p>
+                <p className="mt-0.5 text-xs text-[#8f98a5]">Файл CSV из Google Таблиц</p>
+              </div>
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,text/csv,text/plain"
+              className="sr-only"
+              aria-label="Выбрать CSV с историей"
+              onChange={(event) => void importCsv(event.target.files?.[0])}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isBusy}
+              className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-emerald-300/25 bg-emerald-300/[0.07] px-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-300/[0.12] disabled:cursor-wait disabled:opacity-50"
+            >
+              {isImporting ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4" />
+              )}
+              {isImporting ? "Импортируем..." : "Импортировать CSV"}
+            </button>
+          </div>
+        ) : null}
+
         <button
           type="button"
           onClick={() => void logout()}
-          disabled={isLoggingOut}
+          disabled={isBusy}
           className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-red-300/25 bg-red-500/10 px-4 text-sm font-semibold text-red-100 transition hover:bg-red-500/15 disabled:cursor-wait disabled:opacity-50"
         >
           <LogOut className="h-4 w-4" />

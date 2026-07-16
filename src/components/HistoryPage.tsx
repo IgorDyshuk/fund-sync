@@ -1,20 +1,77 @@
-import { ArrowLeft } from "lucide-react";
+import { AlertTriangle, ArrowLeft, LoaderCircle, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import type { SavedTrade } from "../types/app";
 import { groupTradesByClosedDate } from "../lib/tradeHistoryView";
 import { TradeHistoryRow } from "./TradeHistoryRow";
+import { cn } from "../utils/cn";
 
 type HistoryPageProps = {
   history: SavedTrade[];
   onBack: () => void;
   onTradeSelect: (trade: SavedTrade) => void;
+  onDeleteAll?: () => void | Promise<void>;
 };
 
 export function HistoryPage({
   history,
   onBack,
   onTradeSelect,
+  onDeleteAll,
 }: HistoryPageProps) {
   const groups = groupTradesByClosedDate(history);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isDeleteConfirmOpen) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !isDeletingAll) {
+        setIsDeleteConfirmOpen(false);
+        setDeleteError(null);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isDeleteConfirmOpen, isDeletingAll]);
+
+  function openDeleteConfirm() {
+    setDeleteError(null);
+    setIsDeleteConfirmOpen(true);
+  }
+
+  function closeDeleteConfirm() {
+    if (isDeletingAll) {
+      return;
+    }
+    setIsDeleteConfirmOpen(false);
+    setDeleteError(null);
+  }
+
+  async function deleteAll() {
+    if (!onDeleteAll || isDeletingAll) {
+      return;
+    }
+
+    setIsDeletingAll(true);
+    setDeleteError(null);
+    try {
+      await onDeleteAll();
+      setIsDeleteConfirmOpen(false);
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error
+          ? error.message
+          : "Не удалось удалить историю связок.",
+      );
+    } finally {
+      setIsDeletingAll(false);
+    }
+  }
 
   return (
     <main className="min-h-full bg-[#08090d] text-[#e7e9ee]">
@@ -33,9 +90,22 @@ export function HistoryPage({
               Все связки
             </h1>
           </div>
-          <span className="shrink-0 text-sm font-medium text-[#b9c1cc] sm:text-base">
-            {history.length} {getSavedWord(history.length)}
-          </span>
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <span className="text-sm font-medium text-[#b9c1cc] sm:text-base">
+              {history.length} {getSavedWord(history.length)}
+            </span>
+            {history.length > 0 && onDeleteAll ? (
+              <button
+                type="button"
+                onClick={openDeleteConfirm}
+                aria-label="Удалить все связки"
+                title="Удалить все связки"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-red-300/20 text-red-200 transition hover:border-red-300/35 hover:bg-red-400/10 hover:text-white"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            ) : null}
+          </div>
         </header>
 
         {groups.length > 0 ? (
@@ -66,6 +136,84 @@ export function HistoryPage({
         )}
 
       </section>
+
+      <div
+        className={cn(
+          "fixed inset-0 z-[90] grid place-items-center bg-black/75 p-4 transition-opacity duration-200",
+          isDeleteConfirmOpen
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-0",
+        )}
+        aria-hidden={!isDeleteConfirmOpen}
+        onClick={closeDeleteConfirm}
+      >
+        <section
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="delete-all-trades-title"
+          aria-describedby="delete-all-trades-description"
+          className={cn(
+            "w-full max-w-md rounded-xl border border-white/10 bg-[#11141a] p-4 text-[#e7e9ee] shadow-2xl shadow-black transition duration-200 sm:p-5",
+            isDeleteConfirmOpen
+              ? "translate-y-0 scale-100 opacity-100"
+              : "translate-y-3 scale-[0.98] opacity-0",
+          )}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-red-300/25 bg-red-400/10">
+              <AlertTriangle className="h-5 w-5 text-red-300" />
+            </div>
+            <div className="min-w-0">
+              <h2
+                id="delete-all-trades-title"
+                className="text-lg font-semibold text-white"
+              >
+                Удалить всю историю?
+              </h2>
+              <p
+                id="delete-all-trades-description"
+                className="mt-1 text-sm leading-6 text-[#aeb7c3]"
+              >
+                Будет удалена вся история: {history.length} {getSavedWord(history.length)}. Восстановить её будет невозможно.
+              </p>
+            </div>
+          </div>
+
+          {deleteError ? (
+            <p
+              role="alert"
+              className="mt-4 rounded-lg border border-red-300/25 bg-red-500/10 px-3 py-2 text-sm text-red-100"
+            >
+              {deleteError}
+            </p>
+          ) : null}
+
+          <div className="mt-5 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={closeDeleteConfirm}
+              disabled={isDeletingAll}
+              className="inline-flex min-h-11 items-center justify-center rounded-lg border border-white/10 px-3 text-sm font-medium text-[#c5ccd6] transition hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
+            >
+              Отмена
+            </button>
+            <button
+              type="button"
+              onClick={() => void deleteAll()}
+              disabled={isDeletingAll}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-red-400/90 px-3 text-sm font-semibold text-white transition hover:bg-red-400 disabled:cursor-wait disabled:opacity-60"
+            >
+              {isDeletingAll ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              {isDeletingAll ? "Удаляем..." : "Удалить всё"}
+            </button>
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
