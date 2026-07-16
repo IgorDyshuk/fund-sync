@@ -11,6 +11,7 @@ import {
 } from "../lib/conflicts";
 import { cn } from "../utils/cn";
 import type { ConflictDraft } from "../types/app";
+import { translate as t } from "../lib/i18n";
 
 type ConflictReviewProps = {
   analysis: AnalysisResponse;
@@ -33,9 +34,9 @@ export function ConflictReview({
             <AlertTriangle className="h-5 w-5" />
           </span>
           <div>
-            <h2 className="text-xl font-semibold text-white">Проверь данные</h2>
+            <h2 className="text-xl font-semibold text-white">{t("Проверь данные")}</h2>
             <p className="mt-1 text-sm text-[#9aa3af]">
-              {analysis.bundleType ?? analysis.future.symbol ?? "Сделка"} ·{" "}
+              {t(analysis.bundleType ?? analysis.future.symbol ?? "Сделка")} ·{" "}
               {analysis.conflicts.length}
             </p>
           </div>
@@ -61,7 +62,7 @@ export function ConflictReview({
           className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-emerald-300 px-4 text-sm font-semibold text-[#07110c] transition hover:bg-emerald-200"
         >
           <Check className="h-4 w-4" />
-          Применить значения
+          {t("Применить значения")}
         </button>
       </div>
     </div>
@@ -84,14 +85,14 @@ function ConflictCard({
       <div className="border-b border-white/10 p-4">
         <div className="flex items-center justify-between gap-3">
           <h3 className="font-semibold text-white">
-            {conflict.label ?? getFieldLabel(conflict.field)}
+            {t(conflict.label ?? getFieldLabel(conflict.field))}
           </h3>
           <span className="rounded-md bg-white/[0.06] px-2 py-1 text-xs text-[#9aa3af]">
             {conflict.field}
           </span>
         </div>
         {conflict.message ? (
-          <p className="mt-2 text-sm text-[#aeb7c3]">{conflict.message}</p>
+          <p className="mt-2 text-sm text-[#aeb7c3]">{t(conflict.message)}</p>
         ) : null}
       </div>
 
@@ -110,7 +111,7 @@ function ConflictCard({
         ))}
 
         <label className="grid gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-3">
-          <span className="text-sm font-medium text-[#c5ccd6]">Свое значение</span>
+          <span className="text-sm font-medium text-[#c5ccd6]">{t("Свое значение")}</span>
           <input
             value={draft.customValue}
             onFocus={() =>
@@ -184,7 +185,7 @@ function ConflictChoiceButton({
           {selected ? <Check className="h-3 w-3" /> : null}
         </span>
         <span className="min-w-0 truncate">
-          {choice.label ?? choice.source ?? "Вариант"}
+          {t(choice.label ?? choice.source ?? "Вариант")}
         </span>
       </span>
       <span className="shrink-0 font-semibold">

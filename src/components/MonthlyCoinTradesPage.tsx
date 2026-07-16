@@ -8,6 +8,7 @@ import {
 } from "../lib/monthlyAnalytics";
 import { formatUsdt } from "../lib/tradeCalculator";
 import { groupTradesByClosedDate } from "../lib/tradeHistoryView";
+import { getAppLanguage, translate as t } from "../lib/i18n";
 import type { SavedTrade } from "../types/app";
 import { cn } from "../utils/cn";
 import { MonthlyCoinResultChart } from "./MonthlyCoinResultChart";
@@ -50,7 +51,7 @@ export function MonthlyCoinTradesPage({
           <button
             type="button"
             onClick={onBack}
-            aria-label="Вернуться к обзору месяца"
+            aria-label={t("Вернуться к обзору месяца")}
             className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-[#c5ccd6] transition hover:bg-white/[0.07] hover:text-white"
           >
             <ArrowLeft className="h-5 w-5" />
@@ -90,7 +91,7 @@ export function MonthlyCoinTradesPage({
         <section className="pb-24 pt-6 sm:pb-10 sm:pt-8">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-xl font-semibold text-white sm:text-2xl">
-              Связки
+              {t("Связки")}
             </h2>
             <span className="text-sm font-medium text-[#8f98a5] sm:text-base">
               {trades.length} {getTradeWord(trades.length)}
@@ -127,7 +128,7 @@ export function MonthlyCoinTradesPage({
             ) : (
               <div className="grid min-h-[45vh] place-items-center text-center">
                 <p className="text-sm text-[#87909d]">
-                  Связки за этот период не найдены
+                  {t("Связки за этот период не найдены")}
                 </p>
               </div>
             )}
@@ -139,6 +140,9 @@ export function MonthlyCoinTradesPage({
 }
 
 function getTradeWord(count: number) {
+  if (getAppLanguage() === "en") {
+    return count === 1 ? "trade" : "trades";
+  }
   const lastTwoDigits = count % 100;
   const lastDigit = count % 10;
   if (lastTwoDigits >= 11 && lastTwoDigits <= 14) {

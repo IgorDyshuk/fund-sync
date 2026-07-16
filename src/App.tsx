@@ -9,6 +9,7 @@ import { HomePage } from "./components/HomePage";
 import { ManualTradeDialog } from "./components/ManualTradeDialog";
 import { MonthlyCoinTradesPage } from "./components/MonthlyCoinTradesPage";
 import { MonthlyOverviewPage } from "./components/MonthlyOverviewPage";
+import { OnboardingDialog } from "./components/OnboardingDialog";
 import { TradeDetailsSheet } from "./components/TradeDetailsSheet";
 import { analysisResponseSchema, type AnalysisResponse } from "./lib/analysisSchema";
 import {
@@ -27,6 +28,7 @@ import {
 } from "./lib/manualInstructions";
 import { wait, withTimeout } from "./lib/asyncUtils";
 import { getSyncErrorMessage } from "./lib/syncErrors";
+import { useI18n } from "./lib/I18nContext";
 import type {
   TradeCsvImportDraft,
   TradeCsvImportReport,
@@ -37,6 +39,10 @@ import {
   removeSavedTrade,
 } from "./lib/tradeHistoryActions";
 import { isFirebaseConfigured } from "./lib/firebaseEnv";
+import {
+  hasCompletedOnboarding,
+  markOnboardingCompleted,
+} from "./lib/onboarding";
 import type { AnalyticsRange } from "./lib/monthlyAnalytics";
 import { loadTradeHistory, saveTradeHistory } from "./lib/tradeHistory";
 import {
@@ -52,14 +58,18 @@ const sheetAnimationMs = 300;
 const authDialogAnimationMs = 200;
 const accountDialogAnimationMs = 220;
 const csvImportDialogAnimationMs = 200;
+const onboardingDialogAnimationMs = 200;
 const initialCloudSyncTimeoutMs = 15_000;
 
 function App() {
+  const { language, t } = useI18n();
   const closeTimerRef = useRef<number | null>(null);
   const detailCloseTimerRef = useRef<number | null>(null);
   const accountCloseTimerRef = useRef<number | null>(null);
   const authCloseTimerRef = useRef<number | null>(null);
   const csvImportCloseTimerRef = useRef<number | null>(null);
+  const onboardingCloseTimerRef = useRef<number | null>(null);
+  const shouldOpenOnboardingRef = useRef(!hasCompletedOnboarding());
   const monthlyPageRef = useRef<HTMLDivElement | null>(null);
   const requestTokenRef = useRef(0);
   const hadAuthenticatedSessionRef = useRef(false);
@@ -103,6 +113,8 @@ function App() {
   const [isManualTradeOpen, setIsManualTradeOpen] = useState(false);
   const [editingTrade, setEditingTrade] = useState<SavedTrade | null>(null);
   const [isCloudSaving, setIsCloudSaving] = useState(false);
+  const [isOnboardingMounted, setIsOnboardingMounted] = useState(false);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
 
   useEffect(() => {
     let isActive = true;
@@ -147,7 +159,7 @@ function App() {
             void withTimeout(
               syncUserHistory(user),
               initialCloudSyncTimeoutMs,
-              "Не удалось загрузить облачную историю за 15 секунд.",
+              t("Не удалось загрузить облачную историю за 15 секунд."),
             )
               .then((nextHistory) => {
                 if (!isActive) {
@@ -196,7 +208,21 @@ function App() {
       stopCloudSubscription?.();
       stopAuthSubscription();
     };
-  }, []);
+  }, [t]);
+
+  useEffect(() => {
+    if (authLoading || !shouldOpenOnboardingRef.current) {
+      return;
+    }
+
+    shouldOpenOnboardingRef.current = false;
+    setIsOnboardingMounted(true);
+    const frame = window.requestAnimationFrame(() => {
+      setIsOnboardingOpen(true);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [authLoading]);
 
   const calculation = useMemo<TradeCalculation | null>(() => {
     if (!resultAnalysis) {
@@ -292,7 +318,7 @@ function App() {
   async function analyzeTrade() {
     if (!canAnalyze) {
       setStatus("error");
-      setError("Добавь скриншоты или условия сделки.");
+      setError(t("Добавь скриншоты или условия сделки."));
       return;
     }
 
@@ -322,7 +348,7 @@ function App() {
       const parsed = analysisResponseSchema.safeParse(payload);
 
       if (!parsed.success) {
-        throw new Error("Ответ /api/analyze не совпадает с контрактом.");
+        throw new Error(t("Ответ /api/analyze не совпадает с контрактом."));
       }
 
       openAnalysis(parsed.data);
@@ -334,10 +360,10 @@ function App() {
       setStatus("error");
       setError(
         isAnalyzeTimeout(requestError)
-          ? "API анализа не ответил за 130 секунд. Попробуй меньше скриншотов или повтори запрос позже."
+          ? t("API анализа не ответил за 130 секунд. Попробуй меньше скриншотов или повтори запрос позже.")
           : requestError instanceof Error
             ? requestError.message
-            : "Не удалось обработать сделку.",
+            : t("Не удалось обработать сделку."),
       );
     }
   }
@@ -455,7 +481,7 @@ function App() {
 
     try {
       if (file.size > 5 * 1024 * 1024) {
-        throw new Error("CSV слишком большой. Максимальный размер файла — 5 МБ.");
+        throw new Error(t("CSV слишком большой. Максимальный размер файла — 5 МБ."));
       }
 
       const csvText = await file.text();
@@ -480,7 +506,9 @@ function App() {
             if (result.status === "rejected") {
               failedTrades.set(
                 chunk[resultIndex].id,
-                `Не удалось сохранить в Firestore: ${getSyncErrorMessage(result.reason)}`,
+                t("Не удалось сохранить в Firestore: {error}", {
+                  error: getSyncErrorMessage(result.reason),
+                }),
               );
             }
           });
@@ -522,7 +550,7 @@ function App() {
           message:
             error instanceof Error
               ? error.message
-              : "Не удалось прочитать или импортировать CSV.",
+              : t("Не удалось прочитать или импортировать CSV."),
         },
       ]);
     }
@@ -530,6 +558,18 @@ function App() {
     closeAccountDialog();
     await wait(accountDialogAnimationMs);
     openCsvImportResultDialog(report);
+  }
+
+  async function exportTradeHistoryCsv(range: AnalyticsRange) {
+    const { createTradeCsvExport, downloadTradeCsvExport } = await import(
+      "./lib/tradeCsvExport"
+    );
+    const result = createTradeCsvExport(history, range);
+    if (result.tradeCount === 0) {
+      return t("За выбранный период нет связок для экспорта.");
+    }
+
+    downloadTradeCsvExport(result);
   }
 
   function openCsvImportResultDialog(report: TradeCsvImportReport) {
@@ -561,8 +601,8 @@ function App() {
       period: trade.calculation.period,
       status: isDuplicate ? "duplicate" : "imported",
       message: isDuplicate
-        ? "Связка уже существует и была пропущена."
-        : "Заполнено и импортировано вручную.",
+        ? t("Связка уже существует и была пропущена.")
+        : t("Заполнено и импортировано вручную."),
       tradeId: trade.id,
       values,
     };
@@ -589,7 +629,7 @@ function App() {
 
     if (isDuplicate) {
       throw new Error(
-        "Связка с такой монетой, периодом и итогом уже существует.",
+        t("Связка с такой монетой, периодом и итогом уже существует."),
       );
     }
   }
@@ -636,7 +676,7 @@ function App() {
 
     if (isDuplicate) {
       throw new Error(
-        "Связка с такой монетой, периодом и итогом уже существует.",
+        t("Связка с такой монетой, периодом и итогом уже существует."),
       );
     }
 
@@ -646,7 +686,9 @@ function App() {
         await saveCloudTrade(updatedTrade);
       } catch (error) {
         throw new Error(
-          `Не удалось сохранить в Firestore: ${getSyncErrorMessage(error)}`,
+          t("Не удалось сохранить в Firestore: {error}", {
+            error: getSyncErrorMessage(error),
+          }),
           { cause: error },
         );
       }
@@ -706,7 +748,9 @@ function App() {
         await saveCloudTrade(result.trade);
       } catch (error) {
         throw new Error(
-          `Не удалось сохранить в Firestore: ${getSyncErrorMessage(error)}`,
+          t("Не удалось сохранить в Firestore: {error}", {
+            error: getSyncErrorMessage(error),
+          }),
           { cause: error },
         );
       }
@@ -749,6 +793,26 @@ function App() {
     accountCloseTimerRef.current = window.setTimeout(() => {
       setIsAccountMounted(false);
     }, accountDialogAnimationMs);
+  }
+
+  function openOnboardingDialog() {
+    clearOnboardingCloseTimer();
+    setIsOnboardingMounted(true);
+    window.requestAnimationFrame(() => setIsOnboardingOpen(true));
+  }
+
+  function openOnboardingFromSettings() {
+    closeAccountDialog();
+    openOnboardingDialog();
+  }
+
+  function closeOnboardingDialog() {
+    markOnboardingCompleted();
+    clearOnboardingCloseTimer();
+    setIsOnboardingOpen(false);
+    onboardingCloseTimerRef.current = window.setTimeout(() => {
+      setIsOnboardingMounted(false);
+    }, onboardingDialogAnimationMs);
   }
 
   function retryAnalysis() {
@@ -806,6 +870,13 @@ function App() {
     if (csvImportCloseTimerRef.current !== null) {
       window.clearTimeout(csvImportCloseTimerRef.current);
       csvImportCloseTimerRef.current = null;
+    }
+  }
+
+  function clearOnboardingCloseTimer() {
+    if (onboardingCloseTimerRef.current !== null) {
+      window.clearTimeout(onboardingCloseTimerRef.current);
+      onboardingCloseTimerRef.current = null;
     }
   }
 
@@ -870,7 +941,7 @@ function App() {
         )}
       >
         <MonthlyOverviewPage
-          key={monthlyOverviewSession}
+          key={`${monthlyOverviewSession}-${language}`}
           history={history}
           isActive={activePage === "monthly"}
           onFilterOpenChange={setIsMonthlyFilterOpen}
@@ -905,18 +976,18 @@ function App() {
         ) : null}
       </div>
 
-      {!isMonthlyFilterOpen ? (
+      {!isMonthlyFilterOpen && !isOnboardingMounted ? (
         <FloatingAddButton onClick={openAnalyzeSheet} />
       ) : null}
 
       <ManualTradeDialog
         key={editingTrade?.id ?? "new-manual-trade"}
         isOpen={isManualTradeOpen}
-        title={editingTrade ? "Редактировать связку" : "Добавить связку вручную"}
+        title={t(editingTrade ? "Редактировать связку" : "Добавить связку вручную")}
         description={
           editingTrade
-            ? "Измените нужные поля и сохраните обновлённый результат."
-            : "Укажите монету, период и итог по связке. Остальные поля можно оставить пустыми."
+            ? t("Измените нужные поля и сохраните обновлённый результат.")
+            : t("Укажите монету, период и итог по связке. Остальные поля можно оставить пустыми.")
         }
         initialValues={manualTradeInitialValues}
         onClose={closeManualTradeDialog}
@@ -977,6 +1048,8 @@ function App() {
           onClose={closeAccountDialog}
           onLogout={handleLogout}
           onImportCsv={importTradeHistoryCsv}
+          onExportCsv={exportTradeHistoryCsv}
+          onOpenOnboarding={openOnboardingFromSettings}
         />
       ) : null}
 
@@ -986,6 +1059,13 @@ function App() {
           report={csvImportReport}
           onClose={closeCsvImportResultDialog}
           onResolveRow={resolveCsvImportRow}
+        />
+      ) : null}
+
+      {isOnboardingMounted ? (
+        <OnboardingDialog
+          isOpen={isOnboardingOpen}
+          onClose={closeOnboardingDialog}
         />
       ) : null}
     </div>

@@ -11,11 +11,16 @@ import { HomePage } from "./HomePage";
 import { TradeDetailsSheet } from "./TradeDetailsSheet";
 import { calculateTrade } from "../lib/tradeCalculator";
 import { saveTradeHistory } from "../lib/tradeHistory";
+import {
+  markOnboardingCompleted,
+  onboardingStorageKey,
+} from "../lib/onboarding";
 import type { AnalysisResponse } from "../lib/analysisSchema";
 import type { SavedTrade } from "../types/app";
 
 beforeEach(() => {
   localStorage.clear();
+  markOnboardingCompleted();
 
   if (!window.requestAnimationFrame) {
     window.requestAnimationFrame = (callback) => window.setTimeout(callback, 0);
@@ -42,6 +47,34 @@ afterEach(() => {
 });
 
 describe("history screen interactions", () => {
+  it("shows onboarding only on the first visit and stores completion", async () => {
+    localStorage.removeItem(onboardingStorageKey);
+    const { unmount } = render(<App />);
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: "Добро пожаловать в Fund Sync",
+      }),
+    ).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Добавить связку" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Пропустить" }));
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", {
+          name: "Добро пожаловать в Fund Sync",
+        }),
+      ).toBeNull();
+    });
+    expect(localStorage.getItem(onboardingStorageKey)).toBe("completed");
+
+    unmount();
+    render(<App />);
+    expect(
+      screen.queryByRole("dialog", { name: "Добро пожаловать в Fund Sync" }),
+    ).toBeNull();
+  });
+
   it("opens the account dialog and explains local mode before Firebase is configured", () => {
     const onClose = vi.fn();
 

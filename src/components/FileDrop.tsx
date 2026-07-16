@@ -2,6 +2,7 @@ import { type ChangeEvent } from "react";
 import { FileImage, UploadCloud, X } from "lucide-react";
 import { cn } from "../utils/cn";
 import { formatFileSize } from "../utils/formatFileSize";
+import { translate as t } from "../lib/i18n";
 
 type FileDropProps = {
   title: string;
@@ -67,7 +68,7 @@ export function FileDrop({
         />
         <span className="flex items-center gap-2 text-sm font-medium">
           <UploadCloud className="h-5 w-5" />
-          Выбрать изображения
+          {t("Выбрать изображения")}
         </span>
       </label>
 
@@ -88,7 +89,7 @@ export function FileDrop({
                 type="button"
                 onClick={() => removeFile(index)}
                 className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#8a93a0] transition hover:bg-white/10 hover:text-white"
-                aria-label={`Удалить ${file.name}`}
+                aria-label={t("Удалить {name}", { name: file.name })}
               >
                 <X className="h-4 w-4" />
               </button>

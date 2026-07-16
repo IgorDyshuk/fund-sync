@@ -2,6 +2,7 @@ import { ChevronRight, TrendingUp } from "lucide-react";
 import { createMonthlyTradeSummary } from "../lib/monthlyAnalytics";
 import { getMonthlyCoinColor } from "../lib/monthlyChart";
 import { formatUsdt } from "../lib/tradeCalculator";
+import { translate as t } from "../lib/i18n";
 import type { SavedTrade } from "../types/app";
 import { cn } from "../utils/cn";
 import { MonthlyDonutChart } from "./MonthlyDonutChart";
@@ -27,7 +28,7 @@ export function MonthlyPerformanceWidget({
         <div className="flex min-w-0 items-center gap-2">
           <TrendingUp className="h-5 w-5 shrink-0 text-emerald-300" />
           <h2 className="truncate text-base font-semibold text-white sm:text-lg">
-            Результат за {summary.label.split(" ")[0].toLowerCase()}
+            {t("Результат за")} {summary.label.split(" ")[0].toLowerCase()}
           </h2>
         </div>
         <button
@@ -35,7 +36,7 @@ export function MonthlyPerformanceWidget({
           onClick={onOpen}
           className="inline-flex shrink-0 items-center gap-0.5 text-xs font-medium text-[#aeb7c4] transition hover:text-white sm:text-sm"
         >
-          Подробнее
+          {t("Подробнее")}
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
@@ -71,7 +72,7 @@ export function MonthlyPerformanceWidget({
 
               {hiddenCoinCount > 0 ? (
                 <p className="pl-[18px] text-[11px] text-[#7f8894] sm:text-xs">
-                  Ещё {hiddenCoinCount}
+                  {t("Ещё")} {hiddenCoinCount}
                 </p>
               ) : null}
             </div>
@@ -81,10 +82,10 @@ export function MonthlyPerformanceWidget({
             <MonthlyDonutChart summary={summary} />
             <div className="min-w-0">
               <p className="text-sm font-medium text-[#d6dae1]">
-                Нет закрытых связок
+                {t("Нет закрытых связок")}
               </p>
               <p className="mt-1 text-xs leading-5 text-[#7f8894]">
-                Итоги появятся после сохранения сделок за этот месяц.
+                {t("Итоги появятся после сохранения сделок за этот месяц.")}
               </p>
             </div>
           </div>

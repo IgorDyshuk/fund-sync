@@ -3,6 +3,7 @@ import type { MonthlyTradeSummary } from "../lib/monthlyAnalytics";
 import { getMonthlyCoinColor } from "../lib/monthlyChart";
 import { formatUsdt } from "../lib/tradeCalculator";
 import { cn } from "../utils/cn";
+import { translate as t } from "../lib/i18n";
 
 type MonthlyDonutChartProps = {
   summary: MonthlyTradeSummary;
@@ -28,7 +29,10 @@ export function MonthlyDonutChart({
   return (
     <div
       role="img"
-      aria-label={`Результат за ${summary.label}: ${formatUsdt(summary.totalResult)}`}
+      aria-label={t("Результат за {period}: {result}", {
+        period: summary.label,
+        result: formatUsdt(summary.totalResult),
+      })}
       className={cn(
         "relative grid shrink-0 place-items-center rounded-full",
         size === "large"
@@ -70,7 +74,7 @@ export function MonthlyDonutChart({
               size === "large" ? "text-sm sm:text-base" : "text-[10px] sm:text-xs",
             )}
           >
-            {size === "large" ? "Итог" : "USDT · Итог"}
+            {t(size === "large" ? "Итог" : "USDT · Итог")}
           </p>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { AlertTriangle, PencilLine, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState, type TouchEvent } from "react";
 import type { SavedTrade } from "../types/app";
+import { translate as t } from "../lib/i18n";
 import { cn } from "../utils/cn";
 import { ResultDashboard } from "./ResultDashboard";
 
@@ -84,7 +85,7 @@ export function TradeDetailsSheet({
     >
       <button
         type="button"
-        aria-label="Закрыть информацию о связке"
+        aria-label={t("Закрыть информацию о связке")}
         onClick={onClose}
         className={cn(
           "absolute inset-0 bg-black/70 transition-opacity duration-300",
@@ -95,7 +96,7 @@ export function TradeDetailsSheet({
       <section
         role="dialog"
         aria-modal="true"
-        aria-label="Информация о связке"
+        aria-label={t("Информация о связке")}
         className={cn(
           "absolute inset-x-0 bottom-0 mx-auto flex max-h-[94svh] w-full max-w-[1050px] transform-gpu flex-col overflow-hidden rounded-t-2xl border border-white/10 bg-[#08090d] text-[#e7e9ee] shadow-2xl shadow-black transition-transform duration-300 ease-out will-change-transform lg:max-h-[92vh]",
           isOpen ? "translate-y-0" : "translate-y-full",
@@ -110,16 +111,16 @@ export function TradeDetailsSheet({
         >
           <div className="min-w-0">
             <h2 className="truncate text-base font-semibold text-white sm:text-lg">
-              Информация о связке
+              {t("Информация о связке")}
             </h2>
             <p className="truncate text-xs text-[#9aa3af]">
-              Сохранённый результат сделки
+              {t("Сохранённый результат сделки")}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Закрыть"
+            aria-label={t("Закрыть")}
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 text-[#b9c0ca] transition hover:bg-white/[0.06] hover:text-white"
           >
             <X className="h-5 w-5" />
@@ -143,7 +144,7 @@ export function TradeDetailsSheet({
             className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-white/10 px-3 text-sm font-medium text-[#c5ccd6] transition hover:bg-white/[0.06] hover:text-white sm:min-w-40"
           >
             <PencilLine className="h-4 w-4" />
-            Редактировать
+            {t("Редактировать")}
           </button>
           <button
             type="button"
@@ -151,7 +152,7 @@ export function TradeDetailsSheet({
             className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-red-300/25 px-3 text-sm font-medium text-red-100 transition hover:bg-red-400/10 hover:text-white sm:min-w-40"
           >
             <Trash2 className="h-4 w-4" />
-            Удалить связку
+            {t("Удалить связку")}
           </button>
         </footer>
       </section>
@@ -188,13 +189,13 @@ export function TradeDetailsSheet({
                 id="delete-trade-title"
                 className="text-lg font-semibold text-white"
               >
-                Удалить связку?
+                {t("Удалить связку?")}
               </h3>
               <p
                 id="delete-trade-description"
                 className="mt-1 text-sm leading-6 text-[#aeb7c3]"
               >
-                Итог будет удалён из истории без возможности восстановления.
+                {t("Итог будет удалён из истории без возможности восстановления.")}
               </p>
             </div>
           </div>
@@ -205,7 +206,7 @@ export function TradeDetailsSheet({
               onClick={() => setIsDeleteConfirmOpen(false)}
               className="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-lg border border-white/10 px-3 text-sm font-medium text-[#c5ccd6] transition hover:bg-white/[0.06] hover:text-white"
             >
-              Отмена
+              {t("Отмена")}
             </button>
             <button
               type="button"
@@ -213,7 +214,7 @@ export function TradeDetailsSheet({
               className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-red-400/90 px-3 text-sm font-semibold text-white transition hover:bg-red-400"
             >
               <Trash2 className="h-4 w-4" />
-              Удалить
+              {t("Удалить")}
             </button>
           </div>
         </section>

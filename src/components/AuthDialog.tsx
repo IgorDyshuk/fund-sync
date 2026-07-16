@@ -2,6 +2,7 @@ import { KeyRound, LogIn, UserPlus, X } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { getAuthErrorMessage } from "../lib/authErrors";
 import { isFirebaseConfigured } from "../lib/firebaseEnv";
+import { translate as t } from "../lib/i18n";
 import { cn } from "../utils/cn";
 
 type AuthDialogProps = {
@@ -31,7 +32,7 @@ export function AuthDialog({
     setError(null);
 
     if (mode === "register" && password !== confirmPassword) {
-      setError("Пароли не совпадают.");
+      setError(t("Пароли не совпадают."));
       return;
     }
 
@@ -94,17 +95,17 @@ export function AuthDialog({
             </div>
             <div>
               <h2 id="auth-dialog-title" className="text-lg font-semibold text-white">
-                {mode === "login" ? "Войти в аккаунт" : "Создать аккаунт"}
+                {t(mode === "login" ? "Войти в аккаунт" : "Создать аккаунт")}
               </h2>
               <p className="mt-1 text-sm text-[#aeb7c3]">
-                История связок будет доступна на всех устройствах.
+                {t("История связок будет доступна на всех устройствах.")}
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Закрыть"
+            aria-label={t("Закрыть")}
             className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 text-[#b9c0ca] transition hover:bg-white/[0.06] hover:text-white"
           >
             <X className="h-4 w-4" />
@@ -113,8 +114,7 @@ export function AuthDialog({
 
         {!firebaseConfigured ? (
           <div className="mt-4 rounded-lg border border-amber-300/25 bg-amber-300/10 p-3 text-sm leading-6 text-amber-100">
-            Firebase пока не настроен. Добавь `VITE_FIREBASE_*` переменные из
-            Firebase Console в `.env` или Vercel Environment Variables.
+            {t("Firebase пока не настроен. Добавь `VITE_FIREBASE_*` переменные из Firebase Console в `.env` или Vercel Environment Variables.")}
           </div>
         ) : (
           <>
@@ -122,18 +122,18 @@ export function AuthDialog({
               type="button"
               onClick={() => void continueWithGoogle()}
               disabled={isBusy}
-              aria-label="Продолжить с Google"
+              aria-label={t("Продолжить с Google")}
               className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2.5 rounded-lg border border-white/15 bg-white/[0.06] px-4 text-sm font-semibold text-white transition hover:bg-white/[0.1] disabled:cursor-wait disabled:opacity-50"
             >
               <span className="grid h-5 w-5 place-items-center rounded-full bg-white text-xs font-bold text-[#15171c]">
                 G
               </span>
-              {isBusy ? "Подключение..." : "Продолжить с Google"}
+              {t(isBusy ? "Подключение..." : "Продолжить с Google")}
             </button>
 
             <div className="my-4 flex items-center gap-3" aria-hidden="true">
               <span className="h-px flex-1 bg-white/10" />
-              <span className="text-xs text-[#737d89]">или по email</span>
+              <span className="text-xs text-[#737d89]">{t("или по email")}</span>
               <span className="h-px flex-1 bg-white/10" />
             </div>
 
@@ -149,7 +149,7 @@ export function AuthDialog({
                 )}
               >
                 <LogIn className="h-4 w-4" />
-                Войти
+                {t("Войти")}
               </button>
               <button
                 type="button"
@@ -162,7 +162,7 @@ export function AuthDialog({
                 )}
               >
                 <UserPlus className="h-4 w-4" />
-                Регистрация
+                {t("Регистрация")}
               </button>
             </div>
 
@@ -179,7 +179,7 @@ export function AuthDialog({
                 />
               </label>
               <label className="grid gap-1.5 text-sm text-[#cfd5de]">
-                Пароль
+                {t("Пароль")}
                 <input
                   type="password"
                   value={password}
@@ -192,7 +192,7 @@ export function AuthDialog({
               </label>
               {mode === "register" ? (
                 <label className="grid gap-1.5 text-sm text-[#cfd5de]">
-                  Повтори пароль
+                  {t("Повтори пароль")}
                   <input
                     type="password"
                     value={confirmPassword}
@@ -218,10 +218,10 @@ export function AuthDialog({
               >
                 {mode === "login" ? <LogIn className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
                 {isBusy
-                  ? "Подожди..."
+                  ? t("Подожди...")
                   : mode === "login"
-                    ? "Войти"
-                    : "Создать аккаунт"}
+                    ? t("Войти")
+                    : t("Создать аккаунт")}
               </button>
             </form>
           </>

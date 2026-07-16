@@ -16,6 +16,7 @@ import {
   type AnalyticsRange,
 } from "../lib/monthlyAnalytics";
 import { getMonthlyCoinColor } from "../lib/monthlyChart";
+import { getAppLanguage, getAppLocale, translate as t } from "../lib/i18n";
 import { formatUsdt } from "../lib/tradeCalculator";
 import type { SavedTrade } from "../types/app";
 import { cn } from "../utils/cn";
@@ -90,7 +91,7 @@ export function MonthlyOverviewPage({
           <button
             type="button"
             onClick={onBack}
-            aria-label="Вернуться на главную"
+            aria-label={t("Вернуться на главную")}
             className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-[#c5ccd6] transition hover:bg-white/[0.07] hover:text-white"
           >
             <ArrowLeft className="h-5 w-5" />
@@ -101,7 +102,7 @@ export function MonthlyOverviewPage({
           <button
             type="button"
             onClick={openTimeframe}
-            aria-label="Выбрать период анализа"
+            aria-label={t("Выбрать период анализа")}
             className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-[#c5ccd6] transition hover:bg-white/[0.07] hover:text-white"
           >
             <SlidersHorizontal className="h-5 w-5" />
@@ -157,24 +158,24 @@ export function MonthlyOverviewPage({
           <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
             <SummaryMetric
               icon={TrendingUp}
-              label="Прибыль"
+              label={t("Прибыль")}
               value={formatUsdt(summary.positiveResult)}
               tone="positive"
             />
             <SummaryMetric
               icon={TrendingDown}
-              label="Убытки"
+              label={t("Убытки")}
               value={formatUsdt(summary.negativeResult)}
               tone="negative"
             />
             <SummaryMetric
               icon={CalendarDays}
-              label="Связок"
+              label={t("Связок")}
               value={String(summary.tradeCount)}
             />
             <SummaryMetric
               icon={TrendingUp}
-              label="Чистый итог"
+              label={t("Чистый итог")}
               value={formatUsdt(summary.totalResult)}
               tone={summary.totalResult >= 0 ? "positive" : "negative"}
             />
@@ -185,8 +186,8 @@ export function MonthlyOverviewPage({
           <section
             aria-label={
               selectedRange.timeframe === "month"
-                ? "Динамика по месяцам"
-                : "Динамика по периодам"
+                ? t("Динамика по месяцам")
+                : t("Динамика по периодам")
             }
             className="mt-7 border-y border-white/[0.08] py-5 sm:mt-10 sm:py-6"
           >
@@ -239,7 +240,7 @@ export function MonthlyOverviewPage({
         <section className="pb-24 pt-5 sm:pb-10 sm:pt-7">
           <div className="flex items-center justify-between gap-3 border-b border-white/[0.08] pb-4">
             <h2 className="text-lg font-semibold text-white sm:text-xl">
-              Результат по монетам
+              {t("Результат по монетам")}
             </h2>
             <span className="shrink-0 text-sm font-semibold tabular-nums text-[#d6dae1] sm:text-base">
               {formatUsdt(summary.totalResult)}
@@ -253,7 +254,10 @@ export function MonthlyOverviewPage({
                   key={coin.symbol}
                   type="button"
                   onClick={() => onCoinSelect(coin.symbol, selectedRange)}
-                  aria-label={`Открыть связки ${coin.symbol} за ${summary.label}`}
+                  aria-label={t("Открыть связки {symbol} за {period}", {
+                    symbol: coin.symbol,
+                    period: summary.label,
+                  })}
                   className="flex min-h-[76px] w-full items-center gap-3 py-3 text-left transition hover:bg-white/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-300/70 sm:min-h-[88px] sm:gap-4 sm:py-4"
                 >
                   <span
@@ -265,7 +269,7 @@ export function MonthlyOverviewPage({
                     <p className="truncate text-sm font-semibold text-white sm:text-base">
                       {coin.symbol}
                       <span className="ml-1.5 font-normal text-[#7f8894]">
-                        {coin.sharePercent.toLocaleString("ru-RU", {
+                        {coin.sharePercent.toLocaleString(getAppLocale(), {
                           maximumFractionDigits: 1,
                         })}%
                       </span>
@@ -292,10 +296,10 @@ export function MonthlyOverviewPage({
             <div className="grid min-h-[180px] place-items-center text-center">
               <div>
                 <p className="text-sm font-medium text-[#d6dae1]">
-                  Нет закрытых связок
+                  {t("Нет закрытых связок")}
                 </p>
                 <p className="mt-1 text-xs text-[#7f8894]">
-                  Выберите другой период.
+                  {t("Выберите другой период.")}
                 </p>
               </div>
             </div>
@@ -315,22 +319,22 @@ export function MonthlyOverviewPage({
 }
 
 function getOverviewTitle(range: AnalyticsRange) {
-  if (range.timeframe === "day") return "Обзор за день";
-  if (range.timeframe === "quarter") return "Обзор за квартал";
-  if (range.timeframe === "year") return "Обзор за год";
-  if (range.timeframe === "custom") return "Обзор за период";
-  return "Обзор за месяц";
+  if (range.timeframe === "day") return t("Обзор за день");
+  if (range.timeframe === "quarter") return t("Обзор за квартал");
+  if (range.timeframe === "year") return t("Обзор за год");
+  if (range.timeframe === "custom") return t("Обзор за период");
+  return t("Обзор за месяц");
 }
 
 function getPeriodNavigationLabel(
   range: AnalyticsRange,
   direction: "previous" | "next",
 ) {
-  const prefix = direction === "previous" ? "Предыдущий" : "Следующий";
-  if (range.timeframe === "day") return `${prefix} день`;
-  if (range.timeframe === "quarter") return `${prefix} квартал`;
-  if (range.timeframe === "year") return `${prefix} год`;
-  return `${prefix} месяц`;
+  const prefix = t(direction === "previous" ? "Предыдущий" : "Следующий");
+  if (range.timeframe === "day") return `${prefix} ${t("день")}`;
+  if (range.timeframe === "quarter") return `${prefix} ${t("квартал")}`;
+  if (range.timeframe === "year") return `${prefix} ${t("год")}`;
+  return `${prefix} ${t("месяц")}`;
 }
 
 function SummaryMetric({
@@ -366,6 +370,9 @@ function SummaryMetric({
 }
 
 function getTradeWord(count: number) {
+  if (getAppLanguage() === "en") {
+    return count === 1 ? "trade" : "trades";
+  }
   const lastTwoDigits = count % 100;
   const lastDigit = count % 10;
   if (lastTwoDigits >= 11 && lastTwoDigits <= 14) {

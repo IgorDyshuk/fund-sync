@@ -1,4 +1,4 @@
-import { Check, X } from "lucide-react";
+import { Check, LoaderCircle, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -8,11 +8,17 @@ import {
   type AnalyticsTimeframe,
 } from "../lib/monthlyAnalytics";
 import { cn } from "../utils/cn";
+import { translate as t } from "../lib/i18n";
 
 type AnalyticsTimeframeSheetProps = {
   initialRange: AnalyticsRange;
-  onApply: (range: AnalyticsRange) => void;
+  onApply: (
+    range: AnalyticsRange,
+  ) => void | string | Promise<void | string>;
   onClose: () => void;
+  title?: string;
+  applyLabel?: string;
+  zIndexClassName?: string;
 };
 
 const presetOptions: Array<{
@@ -30,6 +36,9 @@ export function AnalyticsTimeframeSheet({
   initialRange,
   onApply,
   onClose,
+  title = t("Период анализа"),
+  applyLabel = t("Применить"),
+  zIndexClassName = "z-[90]",
 }: AnalyticsTimeframeSheetProps) {
   const [timeframe, setTimeframe] = useState<AnalyticsTimeframe>(
     initialRange.timeframe,
@@ -38,6 +47,7 @@ export function AnalyticsTimeframeSheet({
   const [to, setTo] = useState(formatDateInput(initialRange.end));
   const [error, setError] = useState<string | null>(null);
   const [isClosing, setIsClosing] = useState(false);
+  const [isApplying, setIsApplying] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const requestClose = useCallback(() => {
@@ -91,39 +101,60 @@ export function AnalyticsTimeframeSheet({
     setTo(formatDateInput(range.end));
   };
 
+  const applyRange = async (range: AnalyticsRange) => {
+    setIsApplying(true);
+    setError(null);
+    try {
+      const result = await onApply(range);
+      if (typeof result === "string") {
+        setError(result);
+        return;
+      }
+      requestClose();
+    } catch (applyError) {
+      setError(
+        applyError instanceof Error
+          ? applyError.message
+          : t("Не удалось применить выбранный период."),
+      );
+    } finally {
+      setIsApplying(false);
+    }
+  };
+
   const handleApply = () => {
     if (timeframe === "custom") {
       const startDate = parseDateInput(from);
       const endDate = parseDateInput(to);
       if (!startDate || !endDate) {
-        setError("Укажите начало и окончание периода.");
+        setError(t("Укажите начало и окончание периода."));
         return;
       }
       if (startDate.getTime() > endDate.getTime()) {
-        setError("Дата начала не может быть позже даты окончания.");
+        setError(t("Дата начала не может быть позже даты окончания."));
         return;
       }
-      onApply(createCustomAnalyticsRange(startDate, endDate));
-      requestClose();
+      void applyRange(createCustomAnalyticsRange(startDate, endDate));
       return;
     }
 
-    onApply(createAnalyticsRange(timeframe, new Date()));
-    requestClose();
+    void applyRange(createAnalyticsRange(timeframe, new Date()));
   };
 
   return createPortal(
     <div
       className={cn(
-        "fixed inset-0 z-[90] flex items-end justify-center overscroll-contain bg-black/70 px-0 transition-opacity duration-200 sm:px-4",
+        "fixed inset-0 flex items-end justify-center overscroll-contain bg-black/70 px-0 transition-opacity duration-200 sm:px-4",
+        zIndexClassName,
         !isClosing && "timeframe-sheet-overlay",
         isClosing ? "opacity-0" : "opacity-100",
       )}
       role="presentation"
+      onClick={(event) => event.stopPropagation()}
     >
       <button
         type="button"
-        aria-label="Закрыть выбор периода"
+        aria-label={t("Закрыть выбор периода")}
         className="absolute inset-0 cursor-default"
         onClick={requestClose}
       />
@@ -143,7 +174,7 @@ export function AnalyticsTimeframeSheet({
           <button
             type="button"
             onClick={requestClose}
-            aria-label="Закрыть"
+            aria-label={t("Закрыть")}
             className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 text-[#b5bdc8] transition hover:bg-white/[0.06] hover:text-white"
           >
             <X className="h-5 w-5" />
@@ -152,7 +183,7 @@ export function AnalyticsTimeframeSheet({
             id="timeframe-dialog-title"
             className="text-center text-xl font-semibold text-white"
           >
-            Период анализа
+            {title}
           </h2>
           <span aria-hidden="true" />
         </header>
@@ -160,12 +191,12 @@ export function AnalyticsTimeframeSheet({
         <div className="px-[15px] py-4 sm:px-5 sm:py-5">
           <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
             <DateField
-              label="От"
+              label={t("От")}
               value={from}
               onChange={(value) => handleDateChange(setFrom, value)}
             />
             <DateField
-              label="До"
+              label={t("До")}
               value={to}
               onChange={(value) => handleDateChange(setTo, value)}
             />
@@ -180,10 +211,11 @@ export function AnalyticsTimeframeSheet({
                   type="button"
                   role="radio"
                   aria-checked={isSelected}
+                  disabled={isApplying}
                   onClick={() => handleTimeframeSelect(option.value)}
                   className="flex min-h-14 w-full items-center justify-between gap-4 py-3 text-left text-base font-medium text-[#e0e3e8] transition hover:text-white sm:min-h-16"
                 >
-                  {option.label}
+                  {t(option.label)}
                   <span
                     aria-hidden="true"
                     className={cn(
@@ -209,9 +241,11 @@ export function AnalyticsTimeframeSheet({
           <button
             type="button"
             onClick={handleApply}
-            className="mt-5 inline-flex h-12 w-full items-center justify-center rounded-xl bg-emerald-300 text-base font-semibold text-[#07110e] transition hover:bg-emerald-200"
+            disabled={isApplying}
+            className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-300 text-base font-semibold text-[#07110e] transition hover:bg-emerald-200 disabled:cursor-wait disabled:opacity-60"
           >
-            Применить
+            {isApplying ? <LoaderCircle className="h-5 w-5 animate-spin" /> : null}
+            {isApplying ? t("Подготавливаем...") : applyLabel}
           </button>
         </div>
       </section>

@@ -1,4 +1,5 @@
 import type { SavedTrade } from '../types/app'
+import { getAppLocale, translate as t } from './i18n'
 
 export type TradeHistoryGroup = {
   key: string
@@ -20,7 +21,7 @@ export function groupTradesByClosedDate(history: SavedTrade[]): TradeHistoryGrou
   return Array.from(grouped.entries())
     .map(([key, trades]) => ({
       key,
-      label: key === 'unknown' ? 'Дата не определена' : formatHistoryDate(trades),
+      label: key === 'unknown' ? t('Дата не определена') : formatHistoryDate(trades),
       trades: trades.sort(compareTradesByClosedAt),
     }))
     .sort((first, second) => {
@@ -49,10 +50,10 @@ export function getTradeClosedAt(trade: SavedTrade): Date | null {
 function formatHistoryDate(trades: SavedTrade[]): string {
   const closedAt = getTradeClosedAt(trades[0])
   if (!closedAt) {
-    return 'Дата не определена'
+    return t('Дата не определена')
   }
 
-  return new Intl.DateTimeFormat('ru-RU', {
+  return new Intl.DateTimeFormat(getAppLocale(), {
     day: 'numeric',
     month: 'long',
     year: 'numeric',

@@ -4,6 +4,7 @@ import type { AnalysisResponse } from "../lib/analysisSchema";
 import type { TradeCalculation } from "../lib/tradeCalculator";
 import type { AppStatus, ConflictDraft } from "../types/app";
 import { cn } from "../utils/cn";
+import { translate as t } from "../lib/i18n";
 import { ConflictReview } from "./ConflictReview";
 import { ResultDashboard } from "./ResultDashboard";
 import { SpotSignPrompt } from "./SpotSignPrompt";
@@ -197,7 +198,7 @@ export function AnalyzeSheet({
     >
       <button
         type="button"
-        aria-label="Закрыть окно анализа"
+        aria-label={t("Закрыть окно анализа")}
         onClick={requestClose}
         className={cn(
           "absolute inset-0 bg-black/70 transition-opacity duration-300",
@@ -208,7 +209,7 @@ export function AnalyzeSheet({
       <section
         role="dialog"
         aria-modal="true"
-        aria-label="Анализ связки"
+        aria-label={t("Анализ связки")}
         className={cn(
           "absolute inset-x-0 bottom-0 mx-auto flex max-h-[94svh] w-full max-w-[1360px] transform-gpu flex-col overflow-hidden rounded-t-2xl border border-white/10 bg-[#08090d] text-[#e7e9ee] shadow-2xl shadow-black transition-transform duration-300 ease-out will-change-transform lg:max-h-[92vh]",
           isOpen ? "translate-y-0" : "translate-y-full",
@@ -223,16 +224,16 @@ export function AnalyzeSheet({
         >
           <div className="min-w-0">
             <h2 className="truncate text-base font-semibold text-white sm:text-lg">
-              Новая связка
+              {t("Новая связка")}
             </h2>
             <p className="truncate text-xs text-[#9aa3af]">
-              Загрузка скриншотов, анализ и сохранение итога
+              {t("Загрузка скриншотов, анализ и сохранение итога")}
             </p>
           </div>
           <button
             type="button"
             onClick={requestClose}
-            aria-label="Закрыть"
+            aria-label={t("Закрыть")}
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 text-[#b9c0ca] transition hover:bg-white/[0.06] hover:text-white"
           >
             <X className="h-5 w-5" />
@@ -316,7 +317,7 @@ export function AnalyzeSheet({
                     className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-white/10 px-4 text-sm font-medium text-[#c5ccd6] transition hover:bg-white/[0.06] hover:text-white sm:min-w-36"
                   >
                     <RotateCcw className="h-4 w-4" />
-                    Повторить
+                    {t("Повторить")}
                   </button>
                   <button
                     type="button"
@@ -325,7 +326,7 @@ export function AnalyzeSheet({
                     className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-300 px-5 text-sm font-semibold text-[#07110c] transition hover:bg-emerald-200 disabled:bg-white/10 disabled:text-white/40 sm:min-w-36"
                   >
                     <Check className="h-4 w-4" />
-                    {isSaving ? "Сохраняем..." : "Готово"}
+                    {t(isSaving ? "Сохраняем..." : "Готово")}
                   </button>
                 </>
               ) : null}
@@ -337,7 +338,7 @@ export function AnalyzeSheet({
                   className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-white/10 px-4 text-sm font-medium text-[#c5ccd6] transition hover:bg-white/[0.06] hover:text-white sm:min-w-36"
                 >
                   <RotateCcw className="h-4 w-4" />
-                  Повторить
+                  {t("Повторить")}
                 </button>
               ) : null}
             </footer>
@@ -377,14 +378,13 @@ export function AnalyzeSheet({
                 id="close-result-title"
                 className="text-lg font-semibold text-white"
               >
-                Сохранить результат?
+                {t("Сохранить результат?")}
               </h3>
               <p
                 id="close-result-description"
                 className="mt-1 text-sm leading-6 text-[#aeb7c3]"
               >
-                Итог по связке уже рассчитан. Сохрани его в историю или закрой
-                окно без сохранения.
+                {t("Итог по связке уже рассчитан. Сохрани его в историю или закрой окно без сохранения.")}
               </p>
             </div>
           </div>
@@ -396,14 +396,14 @@ export function AnalyzeSheet({
               className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-red-300/25 px-3 text-sm font-medium text-red-100 transition hover:bg-red-400/10 hover:text-white sm:order-1 sm:px-4"
             >
               <Trash2 className="h-4 w-4" />
-              Не сохранять
+              {t("Не сохранять")}
             </button>
             <button
               type="button"
               onClick={() => setShowCloseConfirm(false)}
               className="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-lg border border-white/10 px-3 text-sm font-medium text-[#c5ccd6] transition hover:bg-white/[0.06] hover:text-white sm:order-2 sm:px-4"
             >
-              Остаться
+              {t("Остаться")}
             </button>
             <button
               type="button"
@@ -411,7 +411,7 @@ export function AnalyzeSheet({
               className="inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-emerald-300 px-3 text-sm font-semibold text-[#07110c] transition hover:bg-emerald-200 sm:order-3 sm:justify-self-end sm:px-4"
             >
               <Save className="h-4 w-4" />
-              Сохранить
+              {t("Сохранить")}
             </button>
           </div>
         </section>

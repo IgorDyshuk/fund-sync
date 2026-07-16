@@ -14,6 +14,7 @@ import type {
   TradeCsvImportReport,
   TradeCsvImportRowResult,
 } from "../lib/tradeCsvImport";
+import { translate as t } from "../lib/i18n";
 import { cn } from "../utils/cn";
 
 type CsvImportResultDialogProps = {
@@ -90,7 +91,7 @@ export function CsvImportResultDialog({
       setDraft(null);
     } catch (error) {
       setSaveError(
-        error instanceof Error ? error.message : "Не удалось сохранить связку.",
+        error instanceof Error ? error.message : t("Не удалось сохранить связку."),
       );
     } finally {
       setIsSaving(false);
@@ -123,7 +124,7 @@ export function CsvImportResultDialog({
             </div>
             <div className="min-w-0">
               <h2 id="csv-import-result-title" className="text-lg font-semibold text-white">
-                Результат импорта
+                {t("Результат импорта")}
               </h2>
               <p className="mt-0.5 truncate text-xs text-[#929ca9]" title={report.fileName}>
                 {report.fileName}
@@ -133,7 +134,7 @@ export function CsvImportResultDialog({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Закрыть результат импорта"
+            aria-label={t("Закрыть результат импорта")}
             className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 text-[#b9c0ca] transition hover:bg-white/[0.06] hover:text-white"
           >
             <X className="h-4 w-4" />
@@ -142,14 +143,14 @@ export function CsvImportResultDialog({
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
           <div className="grid grid-cols-3 gap-2">
-            <SummaryMetric label="Добавлено" value={report.importedCount} tone="success" />
-            <SummaryMetric label="Дубликаты" value={report.duplicateCount} tone="warning" />
-            <SummaryMetric label="Ошибки" value={report.invalidCount} tone="error" />
+            <SummaryMetric label={t("Добавлено")} value={report.importedCount} tone="success" />
+            <SummaryMetric label={t("Дубликаты")} value={report.duplicateCount} tone="warning" />
+            <SummaryMetric label={t("Ошибки")} value={report.invalidCount} tone="error" />
           </div>
 
           <div className="mt-5">
             <h3 className="text-sm font-semibold text-white">
-              {problemRows.length > 0 ? "Строки, требующие внимания" : "Импорт завершен"}
+              {t(problemRows.length > 0 ? "Строки, требующие внимания" : "Импорт завершен")}
             </h3>
 
             {problemRows.length > 0 ? (
@@ -169,7 +170,7 @@ export function CsvImportResultDialog({
             ) : (
               <div className="mt-3 flex items-start gap-2 text-sm text-emerald-200">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-                <p>Все строки обработаны без ошибок.</p>
+                <p>{t("Все строки обработаны без ошибок.")}</p>
               </div>
             )}
           </div>
@@ -182,7 +183,7 @@ export function CsvImportResultDialog({
             onClick={onClose}
             className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-emerald-300 px-4 text-sm font-semibold text-[#07120f] transition hover:bg-emerald-200"
           >
-            Готово
+            {t("Готово")}
           </button>
         </footer>
 
@@ -244,7 +245,9 @@ function ProblemRow({
 }) {
   const isError = result.status === "error";
   const Icon = isError ? AlertTriangle : Info;
-  const location = result.row === null ? "Файл" : `Строка ${result.row}`;
+  const location = result.row === null
+    ? t("Файл")
+    : t("Строка {row}", { row: result.row });
 
   return (
     <div className="flex items-center gap-2.5 py-3 first:pt-3 last:pb-3 sm:gap-3">
@@ -263,7 +266,7 @@ function ProblemRow({
           <p className="mt-0.5 break-words text-xs text-[#929ca9]">{result.period}</p>
         ) : null}
         <p className={cn("mt-1 text-sm leading-5", isError ? "text-red-200" : "text-amber-100")}>
-          {result.message}
+          {t(result.message)}
         </p>
       </div>
       {onEdit ? (
@@ -273,7 +276,7 @@ function ProblemRow({
           className="inline-flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-white/10 px-2.5 text-[11px] font-semibold text-white transition hover:bg-white/[0.06] sm:gap-2 sm:px-3 sm:text-xs"
         >
           <PencilLine className="h-3.5 w-3.5" />
-          Заполнить вручную
+          {t("Заполнить вручную")}
         </button>
       ) : null}
     </div>
@@ -324,14 +327,14 @@ function ManualTradeForm({
           <div className="flex min-w-0 items-center gap-2">
             <PencilLine className="h-4 w-4 shrink-0 text-emerald-300" />
             <h3 id="manual-csv-trade-title" className="truncate text-base font-semibold text-white">
-              Заполнить строку {row.row ?? "вручную"}
+              {t("Заполнить строку {row}", { row: row.row ?? t("вручную") })}
             </h3>
           </div>
           <button
             type="button"
             onClick={onCancel}
             disabled={isSaving}
-            aria-label="Закрыть ручное заполнение"
+            aria-label={t("Закрыть ручное заполнение")}
             className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 text-[#b9c0ca] transition hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
           >
             <X className="h-4 w-4" />
@@ -340,11 +343,11 @@ function ManualTradeForm({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
           <p className="text-xs leading-5 text-[#929ca9]">
-            Уже распознанные значения сохранены. Дополните или исправьте недостающие поля.
+            {t("Уже распознанные значения сохранены. Дополните или исправьте недостающие поля.")}
           </p>
 
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <FormField label="Монета" required className="col-span-1">
+            <FormField label={t("Монета")} required className="col-span-1">
               <input
                 value={draft.symbol}
                 onChange={(event) => update("symbol", event.target.value)}
@@ -354,7 +357,7 @@ function ManualTradeForm({
                 className={inputClassName}
               />
             </FormField>
-            <FormField label="Итог, USDT" required className="col-span-1">
+            <FormField label={t("Итог, USDT")} required className="col-span-1">
               <input
                 value={draft.total}
                 onChange={(event) => update("total", event.target.value)}
@@ -364,7 +367,7 @@ function ManualTradeForm({
                 className={inputClassName}
               />
             </FormField>
-            <FormField label="Период" required className="col-span-2">
+            <FormField label={t("Период")} required className="col-span-2">
               <input
                 value={draft.period}
                 onChange={(event) => update("period", event.target.value)}
@@ -391,7 +394,7 @@ function ManualTradeForm({
                 className={inputClassName}
               />
             </FormField>
-            <FormField label="Спред входа, %">
+            <FormField label={t("Спред входа, %")}>
               <input
                 value={draft.spreadEntry}
                 onChange={(event) => update("spreadEntry", event.target.value)}
@@ -400,7 +403,7 @@ function ManualTradeForm({
                 className={inputClassName}
               />
             </FormField>
-            <FormField label="Спред выхода, %">
+            <FormField label={t("Спред выхода, %")}>
               <input
                 value={draft.spreadExit}
                 onChange={(event) => update("spreadExit", event.target.value)}
@@ -409,20 +412,20 @@ function ManualTradeForm({
                 className={inputClassName}
               />
             </FormField>
-            <FormField label="Количество монет" className="col-span-2">
+            <FormField label={t("Количество монет")} className="col-span-2">
               <input
                 value={draft.quantity}
                 onChange={(event) => update("quantity", event.target.value)}
-                placeholder="Необязательно"
+                placeholder={t("Необязательно")}
                 inputMode="decimal"
                 className={inputClassName}
               />
             </FormField>
-            <FormField label="Спред принес" className="col-span-2">
+            <FormField label={t("Спред принес")} className="col-span-2">
               <input
                 value={draft.spreadContribution}
                 onChange={(event) => update("spreadContribution", event.target.value)}
-                placeholder="Необязательно"
+                placeholder={t("Необязательно")}
                 className={inputClassName}
               />
             </FormField>
@@ -442,7 +445,7 @@ function ManualTradeForm({
             disabled={isSaving}
             className="min-h-10 rounded-lg border border-white/10 px-3 text-sm font-semibold text-[#c6ccd5] transition hover:bg-white/[0.05] disabled:opacity-50"
           >
-            Отмена
+            {t("Отмена")}
           </button>
           <button
             type="submit"
@@ -450,7 +453,7 @@ function ManualTradeForm({
             className="inline-flex min-h-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-emerald-300 px-2 text-xs font-semibold text-[#07120f] transition hover:bg-emerald-200 disabled:cursor-wait disabled:opacity-60 sm:gap-2 sm:px-3 sm:text-sm"
           >
             {isSaving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {isSaving ? "Сохраняем..." : "Сохранить связку"}
+            {t(isSaving ? "Сохраняем..." : "Сохранить связку")}
           </button>
         </footer>
       </form>

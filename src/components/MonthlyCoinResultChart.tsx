@@ -5,6 +5,7 @@ import {
 } from "../lib/monthlyAnalytics";
 import type { SavedTrade } from "../types/app";
 import { cn } from "../utils/cn";
+import { getAppLocale, translate as t } from "../lib/i18n";
 
 type MonthlyCoinResultChartProps = {
   history: SavedTrade[];
@@ -115,7 +116,10 @@ export function MonthlyCoinResultChart({
               key={point.key}
               type="button"
               onClick={() => onPeriodSelect(point.range)}
-              aria-label={`Показать связки ${symbol} за ${point.label}`}
+              aria-label={t("Показать связки {symbol} за {period}", {
+                symbol,
+                period: point.label,
+              })}
               aria-pressed={point.key === selectedPeriodKey}
               title={`${point.label}: ${formatChartValue(point.result)}`}
               className="h-full min-w-0 rounded-sm transition hover:bg-white/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-300/70"
@@ -129,9 +133,9 @@ export function MonthlyCoinResultChart({
 
 function getChartAriaLabel(symbol: string, range: AnalyticsRange) {
   if (range.timeframe === "month") {
-    return `Динамика ${symbol} за семь месяцев`;
+    return t("Динамика {symbol} за семь месяцев", { symbol });
   }
-  return `Динамика ${symbol} по периодам`;
+  return t("Динамика {symbol} по периодам", { symbol });
 }
 
 function ChartGuide({ position, value }: { position: number; value: number }) {
@@ -150,7 +154,7 @@ function ChartGuide({ position, value }: { position: number; value: number }) {
 }
 
 function formatChartValue(value: number) {
-  return `${new Intl.NumberFormat("ru-RU", {
+  return `${new Intl.NumberFormat(getAppLocale(), {
     maximumFractionDigits: 2,
   }).format(value)} USDT`;
 }

@@ -1,3 +1,5 @@
+import { getAppLocale } from './i18n'
+
 export type TradeSide = 'long' | 'short' | 'unknown'
 export type SpotMethod = 'balance_delta' | 'orders' | 'manual' | 'unknown'
 export type MarketType = 'futures' | 'spot' | 'unknown'
@@ -604,7 +606,7 @@ export function formatUsdt(value: number | null | undefined): string {
     return '-'
   }
 
-  return `${new Intl.NumberFormat('ru-RU', {
+  return `${new Intl.NumberFormat(getAppLocale(), {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(normalized)} USDT`
@@ -616,7 +618,7 @@ export function formatPercent(value: number | null | undefined): string {
     return '-'
   }
 
-  return `${new Intl.NumberFormat('ru-RU', {
+  return `${new Intl.NumberFormat(getAppLocale(), {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(normalized)}%`
@@ -628,7 +630,7 @@ export function formatSpread(value: number | null | undefined): string {
     return '-'
   }
 
-  return `${new Intl.NumberFormat('ru-RU', {
+  return `${new Intl.NumberFormat(getAppLocale(), {
     minimumFractionDigits: 2,
     maximumFractionDigits: 4,
   }).format(normalized)}%`

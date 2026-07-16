@@ -1,5 +1,6 @@
 import type { SavedTrade } from "../types/app";
 import { getTradeClosedAt } from "./tradeHistoryView";
+import { getAppLanguage, getAppLocale, translate as t } from "./i18n";
 
 export type MonthlyCoinResult = {
   symbol: string;
@@ -259,8 +260,12 @@ export function createAnalyticsRange(
       key: `quarter:${year}-${quarter}`,
       start,
       end,
-      label: `${toRomanQuarter(quarter)} квартал ${year} г.`,
-      shortLabel: `${toRomanQuarter(quarter)} кв`,
+      label: getAppLanguage() === "en"
+        ? `Q${quarter} ${year}`
+        : `${toRomanQuarter(quarter)} квартал ${year} г.`,
+      shortLabel: getAppLanguage() === "en"
+        ? `Q${quarter}`
+        : `${toRomanQuarter(quarter)} кв`,
     };
   }
 
@@ -271,7 +276,7 @@ export function createAnalyticsRange(
       key: `year:${year}`,
       start,
       end: endOfDay(new Date(year, 11, 31)),
-      label: `${year} год`,
+      label: getAppLanguage() === "en" ? String(year) : `${year} год`,
       shortLabel: String(year),
     };
   }
@@ -299,7 +304,7 @@ export function createCustomAnalyticsRange(from: Date, to: Date): AnalyticsRange
     start,
     end,
     label: formatCustomRangeLabel(start, end),
-    shortLabel: "Период",
+    shortLabel: t("Период"),
   };
 }
 
@@ -323,11 +328,11 @@ export function createMonthKey(date: Date) {
 }
 
 export function normalizeAnalyticsSymbol(symbol: string) {
-  return symbol.split("/")[0]?.trim().toUpperCase() || "НЕИЗВЕСТНО";
+  return symbol.split("/")[0]?.trim().toUpperCase() || (getAppLanguage() === "en" ? "UNKNOWN" : "НЕИЗВЕСТНО");
 }
 
 function formatMonthLabel(date: Date) {
-  const formatted = new Intl.DateTimeFormat("ru-RU", {
+  const formatted = new Intl.DateTimeFormat(getAppLocale(), {
     month: "long",
     year: "numeric",
   }).format(date);
@@ -335,7 +340,7 @@ function formatMonthLabel(date: Date) {
 }
 
 function formatShortMonthLabel(date: Date) {
-  return new Intl.DateTimeFormat("ru-RU", { month: "short" })
+  return new Intl.DateTimeFormat(getAppLocale(), { month: "short" })
     .format(date)
     .replace(".", "")
     .slice(0, 3);
@@ -383,7 +388,7 @@ function createDateKey(date: Date) {
 }
 
 function formatDayLabel(date: Date) {
-  return new Intl.DateTimeFormat("ru-RU", {
+  return new Intl.DateTimeFormat(getAppLocale(), {
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -391,7 +396,7 @@ function formatDayLabel(date: Date) {
 }
 
 function formatShortDayLabel(date: Date) {
-  return new Intl.DateTimeFormat("ru-RU", {
+  return new Intl.DateTimeFormat(getAppLocale(), {
     day: "2-digit",
     month: "2-digit",
   }).format(date);
@@ -402,7 +407,7 @@ function formatCustomRangeLabel(start: Date, end: Date) {
     return formatDayLabel(start);
   }
 
-  const formatter = new Intl.DateTimeFormat("ru-RU", {
+  const formatter = new Intl.DateTimeFormat(getAppLocale(), {
     day: "numeric",
     month: "short",
     year: "numeric",

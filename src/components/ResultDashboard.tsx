@@ -14,10 +14,13 @@ import { useEffect, useState } from "react";
 import type { AnalysisResponse } from "../lib/analysisSchema";
 import {
   formatPercent,
+  formatSpread,
+  formatUsdt,
   type TradeCalculation,
   type TradeLegCalculation,
 } from "../lib/tradeCalculator";
 import { cn } from "../utils/cn";
+import { translate as t } from "../lib/i18n";
 
 type ResultDashboardProps = {
   analysis: AnalysisResponse | null;
@@ -52,7 +55,7 @@ export function ResultDashboard({
       <div className="flex min-h-60 items-center justify-center p-4 lg:min-h-full">
         <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 text-[#c5ccd6]">
           <Loader2 className="h-5 w-5 animate-spin text-emerald-300" />
-          Анализ сделки
+          {t("Анализ сделки")}
         </div>
       </div>
     );
@@ -64,7 +67,7 @@ export function ResultDashboard({
         <div className="w-full max-w-md rounded-lg border border-white/10 bg-[#11141a] p-4 text-center">
           <BarChart3 className="mx-auto h-8 w-8 text-[#6f7885]" />
           <h2 className="mt-3 text-lg font-semibold text-white">
-            Ожидание анализа
+            {t("Ожидание анализа")}
           </h2>
           <p className="mt-1 text-sm text-[#9aa3af]">-</p>
         </div>
@@ -84,7 +87,7 @@ export function ResultDashboard({
               <h2 className="text-xl font-semibold text-white sm:text-2xl xl:text-2xl">
                 {getPrimarySymbol(calculation.symbol)}
               </h2>
-              <BundleBadge label={calculation.bundleType} />
+              <BundleBadge label={t(calculation.bundleType)} />
             </div>
             <div className="mt-1.5 flex items-center gap-2 text-xs text-[#aeb7c3] sm:text-sm xl:mt-2">
               <CalendarClock className="h-4 w-4 text-[#8a93a0]" />
@@ -94,7 +97,7 @@ export function ResultDashboard({
 
           <div className="flex w-fit items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs text-[#b9c0ca] sm:text-sm xl:px-3 xl:py-2">
             <ShieldCheck className="h-4 w-4 text-emerald-300" />
-            Confidence{" "}
+            {t("Уверенность")} {" "}
             {typeof analysis.confidence === "number"
               ? formatPercent(analysis.confidence * 100)
               : "-"}
@@ -120,7 +123,7 @@ export function ResultDashboard({
           </div>
 
           <NetResultCard
-            displayValue={calculation.display.netResult}
+            displayValue={formatUsdt(calculation.netResult)}
             positive={positive}
             negative={negative}
           />
@@ -135,7 +138,7 @@ export function ResultDashboard({
             >
               <span className="flex min-w-0 items-center gap-2">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-amber-300" />
-                <span>Заметки по связке</span>
+                <span>{t("Заметки по связке")}</span>
               </span>
               <span className="shrink-0 text-xs font-medium text-[#9aa3af]">
                 {analysis.notes.length}
@@ -161,13 +164,13 @@ export function ResultDashboard({
                         id="trade-notes-title"
                         className="text-lg font-semibold text-white"
                       >
-                        Заметки по связке
+                        {t("Заметки по связке")}
                       </h3>
                     </div>
                     <button
                       type="button"
                       onClick={() => setIsNotesOpen(false)}
-                      aria-label="Закрыть заметки"
+                      aria-label={t("Закрыть заметки")}
                       className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 text-[#b9c0ca] transition hover:bg-white/[0.06] hover:text-white"
                     >
                       <X className="h-4 w-4" />
@@ -176,7 +179,7 @@ export function ResultDashboard({
 
                   <ul className="mt-4 max-h-[60svh] space-y-2 overflow-y-auto rounded-lg border border-white/10 bg-white/[0.03] p-3 text-sm leading-6 text-[#aeb7c3]">
                     {analysis.notes.map((note, index) => (
-                      <li key={`${note}-${index}`}>{note}</li>
+                      <li key={`${note}-${index}`}>{t(note)}</li>
                     ))}
                   </ul>
                 </section>
@@ -194,22 +197,22 @@ function VolumeSummary({ calculation }: { calculation: TradeCalculation }) {
     <section className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5 xl:flex xl:min-h-[158px] xl:flex-[0_0_430px] xl:flex-col xl:p-4">
       <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-white xl:mb-3 xl:gap-2.5 xl:text-lg">
         <BarChart3 className="h-4 w-4 text-emerald-300 xl:h-6 xl:w-6" />
-        Краткая сводка
+        {t("Краткая сводка")}
       </div>
       <div className="grid min-w-0 grid-cols-3 gap-1.5 xl:min-h-0 xl:flex-1 xl:grid-cols-[repeat(3,minmax(0,1fr))] xl:items-stretch xl:gap-2.5">
         <VolumeCell
-          label="Общий объем"
-          value={calculation.display.totalVolume}
+          label={t("Общий объем")}
+          value={formatUsdt(calculation.totalVolume)}
           primary
         />
         <SpreadCell
-          label="Спред входа"
-          value={calculation.display.spreadEntry}
+          label={t("Спред входа")}
+          value={formatSpread(calculation.spreadEntry)}
           numericValue={calculation.spreadEntry}
         />
         <SpreadCell
-          label="Спред выхода"
-          value={calculation.display.spreadExit}
+          label={t("Спред выхода")}
+          value={formatSpread(calculation.spreadExit)}
           numericValue={calculation.spreadExit}
         />
       </div>
@@ -319,10 +322,10 @@ function SideResultCard({ leg }: { leg: TradeLegCalculation }) {
             ) : (
               <Database className="h-4 w-4 text-[#8a93a0] xl:h-5 xl:w-5" />
             )}
-            <span className="min-w-0 truncate">{leg.title}</span>
+            <span className="min-w-0 truncate">{t(leg.title)}</span>
           </div>
           <span className="mt-1 block truncate text-[11px] text-[#8a93a0] xl:text-sm">
-            {leg.subtitle}
+            {t(leg.subtitle)}
           </span>
         </div>
         <div className="min-w-0">
@@ -336,13 +339,13 @@ function SideResultCard({ leg }: { leg: TradeLegCalculation }) {
                   : "text-white",
             )}
           >
-            {leg.display.pnl}
+            {formatUsdt(leg.pnl)}
           </div>
           <div
             className="mt-1 truncate text-[11px] text-[#aeb7c3] xl:mt-1.5 xl:text-sm"
-            title={leg.display.volume}
+            title={formatUsdt(leg.volume)}
           >
-            {leg.display.volume}
+            {formatUsdt(leg.volume)}
           </div>
         </div>
       </div>
@@ -379,7 +382,7 @@ function NetResultCard({
           ) : (
             <BarChart3 className="h-4 w-4 text-[#8a93a0] xl:h-5 xl:w-5" />
           )}
-          Итог по связке
+          {t("Итог по связке")}
         </div>
         <div
           className={cn(

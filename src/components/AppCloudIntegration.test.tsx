@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthUserSummary } from "../types/auth";
 import type { SavedTrade } from "../types/app";
 import { calculateTrade } from "../lib/tradeCalculator";
+import { markOnboardingCompleted } from "../lib/onboarding";
 
 const cloudMocks = vi.hoisted(() => ({
   authListener: null as ((user: AuthUserSummary | null) => void) | null,
@@ -45,6 +46,7 @@ describe("App cloud integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    markOnboardingCompleted();
     cloudMocks.authListener = null;
     cloudMocks.authUnsubscribe = vi.fn();
     cloudMocks.liveListener = null;
@@ -733,6 +735,24 @@ SOLUSDT;неизвестно;7,5`;
       { timeout: 1_000 },
     );
     expect(localStorage.getItem("fund-sync:trade-history:v1")).toBe("[]");
+  });
+
+  it("reopens onboarding from account settings", async () => {
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Открыть личный кабинет" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Пройти обучение" }),
+    );
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: "Добро пожаловать в Fund Sync",
+      }),
+    ).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Добавить связку" })).toBeNull();
   });
 
   it("unsubscribes auth and live Firestore listeners on unmount", async () => {

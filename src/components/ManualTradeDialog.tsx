@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { TradeCsvImportDraft } from "../lib/tradeCsvImport";
+import { translate as t } from "../lib/i18n";
 import { cn } from "../utils/cn";
 
 type ManualTradeDialogProps = {
@@ -77,12 +78,12 @@ export function ManualTradeDialog({
     }
 
     if (!startedAt || !endedAt) {
-      setSaveError("Укажите дату и время начала и окончания связки.");
+      setSaveError(t("Укажите дату и время начала и окончания связки."));
       return;
     }
 
     if (new Date(endedAt).getTime() <= new Date(startedAt).getTime()) {
-      setSaveError("Окончание связки должно быть позже её начала.");
+      setSaveError(t("Окончание связки должно быть позже её начала."));
       return;
     }
 
@@ -93,7 +94,7 @@ export function ManualTradeDialog({
       closeDialog();
     } catch (error) {
       setSaveError(
-        error instanceof Error ? error.message : "Не удалось сохранить связку.",
+        error instanceof Error ? error.message : t("Не удалось сохранить связку."),
       );
     } finally {
       setIsSaving(false);
@@ -143,7 +144,7 @@ export function ManualTradeDialog({
             type="button"
             onClick={closeDialog}
             disabled={isSaving}
-            aria-label="Закрыть ручное добавление"
+            aria-label={t("Закрыть ручное добавление")}
             className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 text-[#b9c0ca] transition hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
           >
             <X className="h-4 w-4" />
@@ -154,7 +155,7 @@ export function ManualTradeDialog({
           <p className="text-xs leading-5 text-[#929ca9]">{description}</p>
 
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <FormField label="Монета" required>
+            <FormField label={t("Монета")} required>
               <input
                 value={draft.symbol}
                 onChange={(event) => update("symbol", event.target.value)}
@@ -164,7 +165,7 @@ export function ManualTradeDialog({
                 className={inputClassName}
               />
             </FormField>
-            <FormField label="Итог, USDT" required>
+            <FormField label={t("Итог, USDT")} required>
               <input
                 value={draft.total}
                 onChange={(event) => update("total", event.target.value)}
@@ -178,20 +179,20 @@ export function ManualTradeDialog({
               <legend className="px-1 text-xs text-[#aeb6c1]">
                 <span className="inline-flex items-center gap-1.5">
                   <CalendarRange className="h-3.5 w-3.5 text-emerald-300" />
-                  Период *
+                  {t("Период")} *
                 </span>
               </legend>
               <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3">
                 <DateTimePickerField
                   id="manual-trade-started-at"
-                  label="Начало"
+                  label={t("Начало")}
                   value={startedAt}
                   max={endedAt || undefined}
                   onChange={(value) => updatePeriod(value, endedAt)}
                 />
                 <DateTimePickerField
                   id="manual-trade-ended-at"
-                  label="Окончание"
+                  label={t("Окончание")}
                   value={endedAt}
                   min={startedAt || undefined}
                   onChange={(value) => updatePeriod(startedAt, value)}
@@ -216,7 +217,7 @@ export function ManualTradeDialog({
                 className={inputClassName}
               />
             </FormField>
-            <FormField label="Спред входа, %">
+            <FormField label={t("Спред входа, %")}>
               <input
                 value={draft.spreadEntry}
                 onChange={(event) => update("spreadEntry", event.target.value)}
@@ -225,7 +226,7 @@ export function ManualTradeDialog({
                 className={inputClassName}
               />
             </FormField>
-            <FormField label="Спред выхода, %">
+            <FormField label={t("Спред выхода, %")}>
               <input
                 value={draft.spreadExit}
                 onChange={(event) => update("spreadExit", event.target.value)}
@@ -234,20 +235,20 @@ export function ManualTradeDialog({
                 className={inputClassName}
               />
             </FormField>
-            <FormField label="Количество монет" className="col-span-2">
+            <FormField label={t("Количество монет")} className="col-span-2">
               <input
                 value={draft.quantity}
                 onChange={(event) => update("quantity", event.target.value)}
-                placeholder="Необязательно"
+                placeholder={t("Необязательно")}
                 inputMode="decimal"
                 className={inputClassName}
               />
             </FormField>
-            <FormField label="Спред принес" className="col-span-2">
+            <FormField label={t("Спред принес")} className="col-span-2">
               <input
                 value={draft.spreadContribution}
                 onChange={(event) => update("spreadContribution", event.target.value)}
-                placeholder="Необязательно"
+                placeholder={t("Необязательно")}
                 className={inputClassName}
               />
             </FormField>
@@ -270,7 +271,7 @@ export function ManualTradeDialog({
             disabled={isSaving}
             className="min-h-10 rounded-lg border border-white/10 px-3 text-sm font-semibold text-[#c6ccd5] transition hover:bg-white/[0.05] disabled:opacity-50"
           >
-            Отмена
+            {t("Отмена")}
           </button>
           <button
             type="submit"
@@ -282,7 +283,7 @@ export function ManualTradeDialog({
             ) : (
               <Save className="h-4 w-4" />
             )}
-            {isSaving ? "Сохраняем..." : "Сохранить связку"}
+            {t(isSaving ? "Сохраняем..." : "Сохранить связку")}
           </button>
         </footer>
       </form>
@@ -352,7 +353,7 @@ function DateTimePickerField({
           className="flex min-h-10 min-w-0 items-center justify-between gap-1.5 px-2 text-xs text-white sm:gap-2 sm:px-3 sm:text-sm"
         >
           <span className={cn("min-w-0 truncate", !value && "text-[#646d79]")}>
-            {value ? formatPickerValue(value) : "Выбрать дату и время"}
+            {value ? formatPickerValue(value) : t("Выбрать дату и время")}
           </span>
           <CalendarClock className="h-4 w-4 shrink-0 text-[#7d8794]" />
         </span>
@@ -454,7 +455,7 @@ function toLocalDateTimeInput(date: Date) {
 function formatPickerValue(value: string) {
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
   if (!match) {
-    return "Выбрать дату и время";
+    return t("Выбрать дату и время");
   }
 
   const [, year, month, day, hours, minutes] = match;

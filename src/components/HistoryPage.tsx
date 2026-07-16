@@ -4,6 +4,7 @@ import type { SavedTrade } from "../types/app";
 import { groupTradesByClosedDate } from "../lib/tradeHistoryView";
 import { TradeHistoryRow } from "./TradeHistoryRow";
 import { cn } from "../utils/cn";
+import { getAppLanguage, translate as t } from "../lib/i18n";
 
 type HistoryPageProps = {
   history: SavedTrade[];
@@ -66,7 +67,7 @@ export function HistoryPage({
       setDeleteError(
         error instanceof Error
           ? error.message
-          : "Не удалось удалить историю связок.",
+          : t("Не удалось удалить историю связок."),
       );
     } finally {
       setIsDeletingAll(false);
@@ -81,13 +82,13 @@ export function HistoryPage({
             <button
               type="button"
               onClick={onBack}
-              aria-label="Вернуться на главную"
+              aria-label={t("Вернуться на главную")}
               className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-[#c5ccd6] transition hover:bg-white/[0.07] hover:text-white"
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
             <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-5xl">
-              Все связки
+              {t("Все связки")}
             </h1>
           </div>
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
@@ -98,8 +99,8 @@ export function HistoryPage({
               <button
                 type="button"
                 onClick={openDeleteConfirm}
-                aria-label="Удалить все связки"
-                title="Удалить все связки"
+                aria-label={t("Удалить все связки")}
+                title={t("Удалить все связки")}
                 className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-red-300/20 text-red-200 transition hover:border-red-300/35 hover:bg-red-400/10 hover:text-white"
               >
                 <Trash2 className="h-4 w-4" />
@@ -131,7 +132,7 @@ export function HistoryPage({
           </div>
         ) : (
           <div className="grid min-h-[60vh] place-items-center">
-            <p className="text-sm text-[#87909d]">История пока пустая</p>
+            <p className="text-sm text-[#87909d]">{t("История пока пустая")}</p>
           </div>
         )}
 
@@ -169,13 +170,16 @@ export function HistoryPage({
                 id="delete-all-trades-title"
                 className="text-lg font-semibold text-white"
               >
-                Удалить всю историю?
+                {t("Удалить всю историю?")}
               </h2>
               <p
                 id="delete-all-trades-description"
                 className="mt-1 text-sm leading-6 text-[#aeb7c3]"
               >
-                Будет удалена вся история: {history.length} {getSavedWord(history.length)}. Восстановить её будет невозможно.
+                {t("Будет удалена вся история: {count} {word}. Восстановить её будет невозможно.", {
+                  count: history.length,
+                  word: getSavedWord(history.length),
+                })}
               </p>
             </div>
           </div>
@@ -196,7 +200,7 @@ export function HistoryPage({
               disabled={isDeletingAll}
               className="inline-flex min-h-11 items-center justify-center rounded-lg border border-white/10 px-3 text-sm font-medium text-[#c5ccd6] transition hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
             >
-              Отмена
+              {t("Отмена")}
             </button>
             <button
               type="button"
@@ -209,7 +213,7 @@ export function HistoryPage({
               ) : (
                 <Trash2 className="h-4 w-4" />
               )}
-              {isDeletingAll ? "Удаляем..." : "Удалить всё"}
+              {t(isDeletingAll ? "Удаляем..." : "Удалить всё")}
             </button>
           </div>
         </section>
@@ -219,6 +223,9 @@ export function HistoryPage({
 }
 
 function getSavedWord(count: number) {
+  if (getAppLanguage() === "en") {
+    return count === 1 ? "trade" : "trades";
+  }
   if (count === 1) {
     return "связка";
   }

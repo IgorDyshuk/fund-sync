@@ -1,6 +1,7 @@
 import { BarChart3, ChevronRight, LoaderCircle, UserRound } from "lucide-react";
 import type { SavedTrade } from "../types/app";
 import type { AuthUserSummary } from "../types/auth";
+import { translate as t } from "../lib/i18n";
 import { MonthlyPerformanceWidget } from "./MonthlyPerformanceWidget";
 import { TradeHistoryRow } from "./TradeHistoryRow";
 
@@ -38,13 +39,13 @@ export function HomePage({
           <div>
             <p className="text-sm font-medium text-emerald-300">Fund Sync</p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-              Обзор
+              {t("Обзор")}
             </h1>
           </div>
           <div className="flex items-center">
             {authLoading ? (
               <div
-                aria-label="Проверка аккаунта"
+                aria-label={t("Проверка аккаунта")}
                 className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-[#8f98a5]"
               >
                 <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -53,13 +54,13 @@ export function HomePage({
               <button
                 type="button"
                 onClick={authUser ? onOpenAccount : onOpenAuth}
-                aria-label={authUser ? "Открыть личный кабинет" : "Войти в аккаунт"}
+                aria-label={t(authUser ? "Открыть личный кабинет" : "Войти в аккаунт")}
                 className={`inline-flex h-10 w-10 items-center justify-center rounded-full border bg-white/[0.04] transition ${
                   authUser
                     ? "border-emerald-300/30 text-emerald-300 hover:bg-emerald-300/10"
                     : "border-white/10 text-[#aeb7c3] hover:border-emerald-300/30 hover:text-emerald-200"
                 }`}
-                title={authUser?.email ?? "Войти в аккаунт"}
+                title={authUser?.email ?? t("Войти в аккаунт")}
               >
                 <UserRound className="h-5 w-5" />
               </button>
@@ -89,10 +90,10 @@ export function HomePage({
             <section className="grid min-h-[218px] place-items-center rounded-2xl border border-white/10 bg-[#111318] p-5 text-center shadow-2xl shadow-black/20">
               <div>
                 <h2 className="text-base font-semibold text-white">
-                  История пока пустая
+                  {t("История пока пустая")}
                 </h2>
                 <p className="mt-1 text-sm text-[#9aa3af]">
-                  Новые итоги появятся после сохранения связки.
+                  {t("Новые итоги появятся после сохранения связки.")}
                 </p>
               </div>
             </section>
@@ -119,7 +120,7 @@ function RecentTradesWidget({
         <div className="flex min-w-0 items-center gap-2">
           <BarChart3 className="h-5 w-5 shrink-0 text-emerald-300" />
           <h2 className="text-base font-semibold text-white sm:text-lg">
-            Последние связки
+            {t("Последние связки")}
           </h2>
         </div>
         <button
@@ -127,7 +128,7 @@ function RecentTradesWidget({
           onClick={onOpenHistory}
           className="inline-flex shrink-0 items-center gap-0.5 text-xs font-medium text-[#aeb7c4] transition hover:text-white sm:text-sm"
         >
-          Показать все
+          {t("Показать все")}
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
