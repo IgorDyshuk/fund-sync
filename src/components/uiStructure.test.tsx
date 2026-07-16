@@ -21,6 +21,7 @@ describe("history UI structure", () => {
         history={trades}
         onTradeSelect={() => undefined}
         onOpenHistory={() => undefined}
+        onOpenMonthlyOverview={() => undefined}
         authUser={null}
         authLoading={false}
         authError={null}
@@ -33,7 +34,9 @@ describe("history UI structure", () => {
     expect(markup).toContain("Показать все");
     expect(markup).toContain("COIN0USDT");
     expect(markup).toContain("COIN4USDT");
-    expect(markup).not.toContain("COIN5USDT");
+    expect(
+      markup.match(/aria-label="Открыть связку COIN\dUSDT"/g),
+    ).toHaveLength(5);
     expect(markup).not.toContain("Фьючерс + Спот");
   });
 

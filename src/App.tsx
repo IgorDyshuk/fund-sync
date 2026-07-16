@@ -7,6 +7,8 @@ import { FloatingAddButton } from "./components/FloatingAddButton";
 import { HistoryPage } from "./components/HistoryPage";
 import { HomePage } from "./components/HomePage";
 import { ManualTradeDialog } from "./components/ManualTradeDialog";
+import { MonthlyCoinTradesPage } from "./components/MonthlyCoinTradesPage";
+import { MonthlyOverviewPage } from "./components/MonthlyOverviewPage";
 import { TradeDetailsSheet } from "./components/TradeDetailsSheet";
 import { analysisResponseSchema, type AnalysisResponse } from "./lib/analysisSchema";
 import {
@@ -77,7 +79,13 @@ function App() {
   const [selectedTrade, setSelectedTrade] = useState<SavedTrade | null>(null);
   const [isDetailsMounted, setIsDetailsMounted] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
-  const [isHistoryPage, setIsHistoryPage] = useState(false);
+  const [activePage, setActivePage] = useState<
+    "home" | "history" | "monthly" | "monthlyCoin"
+  >("home");
+  const [selectedMonthlyCoin, setSelectedMonthlyCoin] = useState<{
+    symbol: string;
+    monthDate: Date;
+  } | null>(null);
   const [authUser, setAuthUser] = useState<AuthUserSummary | null>(null);
   const [authLoading, setAuthLoading] = useState(isFirebaseConfigured);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -802,14 +810,15 @@ function App() {
       <div
         className={cn(
           "h-[100svh] transform-gpu transition-transform duration-300 ease-out",
-          isHistoryPage
+          activePage !== "home"
             ? "pointer-events-none -translate-x-full overflow-y-hidden"
             : "translate-x-0 overflow-y-auto",
         )}
       >
         <HomePage
           history={history}
-          onOpenHistory={() => setIsHistoryPage(true)}
+          onOpenHistory={() => setActivePage("history")}
+          onOpenMonthlyOverview={() => setActivePage("monthly")}
           onTradeSelect={openTradeDetails}
           authUser={authUser}
           authLoading={authLoading}
@@ -822,17 +831,58 @@ function App() {
       <div
         className={cn(
           "absolute inset-0 h-[100svh] transform-gpu transition-transform duration-300 ease-out",
-          isHistoryPage
+          activePage === "history"
             ? "pointer-events-auto translate-x-0 overflow-y-auto"
             : "pointer-events-none translate-x-full overflow-y-hidden",
         )}
       >
         <HistoryPage
           history={history}
-          onBack={() => setIsHistoryPage(false)}
+          onBack={() => setActivePage("home")}
           onTradeSelect={openTradeDetails}
           onDeleteAll={deleteAllTrades}
         />
+      </div>
+
+      <div
+        className={cn(
+          "absolute inset-0 h-[100svh] transform-gpu transition-transform duration-300 ease-out",
+          activePage === "monthly"
+            ? "pointer-events-auto translate-x-0 overflow-y-auto"
+            : activePage === "monthlyCoin"
+              ? "pointer-events-none -translate-x-full overflow-y-hidden"
+              : "pointer-events-none translate-x-full overflow-y-hidden",
+        )}
+      >
+        <MonthlyOverviewPage
+          history={history}
+          isActive={activePage === "monthly"}
+          onCoinSelect={(symbol, monthDate) => {
+            setSelectedMonthlyCoin({ symbol, monthDate });
+            setActivePage("monthlyCoin");
+          }}
+          onBack={() => setActivePage("home")}
+        />
+      </div>
+
+      <div
+        className={cn(
+          "absolute inset-0 h-[100svh] transform-gpu transition-transform duration-300 ease-out",
+          activePage === "monthlyCoin"
+            ? "pointer-events-auto translate-x-0 overflow-y-auto"
+            : "pointer-events-none translate-x-full overflow-y-hidden",
+        )}
+      >
+        {selectedMonthlyCoin ? (
+          <MonthlyCoinTradesPage
+            key={`${selectedMonthlyCoin.symbol}-${selectedMonthlyCoin.monthDate.toISOString()}`}
+            history={history}
+            symbol={selectedMonthlyCoin.symbol}
+            monthDate={selectedMonthlyCoin.monthDate}
+            onBack={() => setActivePage("monthly")}
+            onTradeSelect={openTradeDetails}
+          />
+        ) : null}
       </div>
 
       <FloatingAddButton onClick={openAnalyzeSheet} />

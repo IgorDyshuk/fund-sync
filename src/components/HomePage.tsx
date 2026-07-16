@@ -1,6 +1,7 @@
-import { BarChart3, ChevronRight, Database, LoaderCircle, UserRound } from "lucide-react";
+import { BarChart3, ChevronRight, LoaderCircle, UserRound } from "lucide-react";
 import type { SavedTrade } from "../types/app";
 import type { AuthUserSummary } from "../types/auth";
+import { MonthlyPerformanceWidget } from "./MonthlyPerformanceWidget";
 import { TradeHistoryRow } from "./TradeHistoryRow";
 
 const recentTradesLimit = 5;
@@ -9,6 +10,7 @@ type HomePageProps = {
   history: SavedTrade[];
   onTradeSelect: (trade: SavedTrade) => void;
   onOpenHistory: () => void;
+  onOpenMonthlyOverview: () => void;
   authUser: AuthUserSummary | null;
   authLoading: boolean;
   authError: string | null;
@@ -20,6 +22,7 @@ export function HomePage({
   history,
   onTradeSelect,
   onOpenHistory,
+  onOpenMonthlyOverview,
   authUser,
   authLoading,
   authError,
@@ -70,25 +73,31 @@ export function HomePage({
           </div>
         ) : null}
 
-        {recentTrades.length > 0 ? (
-          <RecentTradesWidget
-            trades={recentTrades}
-            onTradeSelect={onTradeSelect}
-            onOpenHistory={onOpenHistory}
+        <div className="mt-4 grid w-full items-start gap-4 sm:mt-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+          <MonthlyPerformanceWidget
+            history={history}
+            onOpen={onOpenMonthlyOverview}
           />
-        ) : (
-          <div className="grid flex-1 place-items-center">
-            <div className="w-full max-w-sm rounded-lg border border-white/10 bg-[#101217] p-5 text-center shadow-2xl shadow-black/20">
-              <Database className="mx-auto h-9 w-9 text-[#6f7885]" />
-              <h2 className="mt-3 text-lg font-semibold text-white">
-                История пока пустая
-              </h2>
-              <p className="mt-1 text-sm text-[#9aa3af]">
-                Новые итоги появятся здесь после сохранения связки.
-              </p>
-            </div>
-          </div>
-        )}
+
+          {recentTrades.length > 0 ? (
+            <RecentTradesWidget
+              trades={recentTrades}
+              onTradeSelect={onTradeSelect}
+              onOpenHistory={onOpenHistory}
+            />
+          ) : (
+            <section className="grid min-h-[218px] place-items-center rounded-2xl border border-white/10 bg-[#111318] p-5 text-center shadow-2xl shadow-black/20">
+              <div>
+                <h2 className="text-base font-semibold text-white">
+                  История пока пустая
+                </h2>
+                <p className="mt-1 text-sm text-[#9aa3af]">
+                  Новые итоги появятся после сохранения связки.
+                </p>
+              </div>
+            </section>
+          )}
+        </div>
 
       </section>
     </main>
@@ -105,7 +114,7 @@ function RecentTradesWidget({
   onOpenHistory: () => void;
 }) {
   return (
-    <section className="mt-4 w-full overflow-hidden rounded-2xl border border-white/10 bg-[#111318] shadow-2xl shadow-black/20 sm:mt-8">
+    <section className="w-full overflow-hidden rounded-2xl border border-white/10 bg-[#111318] shadow-2xl shadow-black/20">
       <div className="flex items-center justify-between gap-3 px-3 py-3 sm:px-6 sm:py-5">
         <div className="flex min-w-0 items-center gap-2">
           <BarChart3 className="h-5 w-5 shrink-0 text-emerald-300" />

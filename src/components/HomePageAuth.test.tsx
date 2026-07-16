@@ -71,6 +71,7 @@ function renderHome(
       history={[]}
       onTradeSelect={() => undefined}
       onOpenHistory={() => undefined}
+      onOpenMonthlyOverview={() => undefined}
       authUser={overrides.authUser ?? null}
       authLoading={overrides.authLoading ?? false}
       authError={overrides.authError ?? null}

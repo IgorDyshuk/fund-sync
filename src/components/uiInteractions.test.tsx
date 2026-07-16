@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor, cleanup } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, cleanup, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App";
 import { AnalyzeSheet } from "./AnalyzeSheet";
@@ -69,10 +69,64 @@ describe("history screen interactions", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Показать все/ }));
     expect(screen.getByRole("heading", { name: "Все связки" })).not.toBeNull();
-    expect(screen.getByText("1 связка")).not.toBeNull();
+    expect(screen.getAllByText("1 связка").length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByRole("button", { name: "Вернуться на главную" }));
+    const historyPage = screen
+      .getByRole("heading", { name: "Все связки" })
+      .closest("main");
+    fireEvent.click(
+      within(historyPage as HTMLElement).getByRole("button", {
+        name: "Вернуться на главную",
+      }),
+    );
     expect(screen.getByRole("heading", { name: "Обзор" })).not.toBeNull();
+  });
+
+  it("opens the monthly overview from the home widget and returns back", () => {
+    saveTradeHistory([createTrade("monthly-1", "BTCUSDT", 12)]);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Подробнее/ }));
+    expect(
+      screen.getByRole("heading", { name: "Обзор за месяц" }),
+    ).not.toBeNull();
+
+    const monthlyPage = screen
+      .getByRole("heading", { name: "Обзор за месяц" })
+      .closest("main");
+    fireEvent.click(
+      within(monthlyPage as HTMLElement).getByRole("button", {
+        name: "Вернуться на главную",
+      }),
+    );
+    expect(screen.getByRole("heading", { name: "Обзор" })).not.toBeNull();
+  });
+
+  it("opens a coin month page and returns to the same monthly overview", () => {
+    saveTradeHistory([createTrade("coin-month-1", "BTCUSDT", 12)]);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Подробнее/ }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Открыть связки BTCUSDT за Июль 2026 г\./,
+      }),
+    );
+
+    const coinMonthPage = screen
+      .getByRole("heading", { name: "BTCUSDT", level: 1 })
+      .closest("main");
+    expect(coinMonthPage).not.toBeNull();
+    expect(within(coinMonthPage as HTMLElement).getByText("1 связка")).not.toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Вернуться к обзору месяца" }),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Обзор за месяц" }),
+    ).not.toBeNull();
   });
 
   it("opens a saved trade from both home and full-history rows", () => {
@@ -85,6 +139,7 @@ describe("history screen interactions", () => {
         history={[trade]}
         onTradeSelect={onHomeSelect}
         onOpenHistory={() => undefined}
+        onOpenMonthlyOverview={() => undefined}
         authUser={null}
         authLoading={false}
         authError={null}
