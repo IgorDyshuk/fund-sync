@@ -9,12 +9,14 @@ type MonthlyDonutChartProps = {
   summary: MonthlyTradeSummary;
   size?: "compact" | "large";
   animate?: boolean;
+  onClick?: () => void;
 };
 
 export function MonthlyDonutChart({
   summary,
   size = "compact",
   animate = false,
+  onClick,
 }: MonthlyDonutChartProps) {
   const chartBackground = createDonutGradient(summary);
   const resultTone =
@@ -26,20 +28,19 @@ export function MonthlyDonutChart({
   const formattedResult = formatUsdt(summary.totalResult);
   const compactResult = formattedResult.replace(/\sUSDT$/, "");
 
-  return (
-    <div
-      role="img"
-      aria-label={t("Результат за {period}: {result}", {
-        period: summary.label,
-        result: formatUsdt(summary.totalResult),
-      })}
-      className={cn(
-        "relative grid shrink-0 place-items-center rounded-full",
-        size === "large"
-          ? "h-[min(72vw,310px)] w-[min(72vw,310px)] sm:h-[340px] sm:w-[340px]"
-          : "h-[126px] w-[126px] sm:h-[148px] sm:w-[148px]",
-      )}
-    >
+  const chartLabel = t("Результат за {period}: {result}", {
+    period: summary.label,
+    result: formatUsdt(summary.totalResult),
+  });
+  const chartClassName = cn(
+    "relative grid shrink-0 place-items-center rounded-full",
+    size === "large"
+      ? "h-[min(72vw,310px)] w-[min(72vw,310px)] sm:h-[340px] sm:w-[340px]"
+      : "h-[126px] w-[126px] sm:h-[148px] sm:w-[148px]",
+    onClick && "cursor-pointer transition-transform duration-200 hover:scale-[1.025] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-300",
+  );
+  const chartContent = (
+    <>
       <div
         aria-hidden="true"
         className="absolute inset-0 rounded-full bg-[#292d35]"
@@ -78,6 +79,28 @@ export function MonthlyDonutChart({
           </p>
         </div>
       </div>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={t("Открыть обзор за месяц")}
+        title={t("Открыть обзор за месяц")}
+        className={chartClassName}
+      >
+        <span role="img" aria-label={chartLabel} className="contents">
+          {chartContent}
+        </span>
+      </button>
+    );
+  }
+
+  return (
+    <div role="img" aria-label={chartLabel} className={chartClassName}>
+      {chartContent}
     </div>
   );
 }

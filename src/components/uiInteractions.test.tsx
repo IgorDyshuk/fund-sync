@@ -42,6 +42,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.restoreAllMocks();
   localStorage.clear();
 });
@@ -269,6 +270,8 @@ describe("history screen interactions", () => {
   });
 
   it("opens a coin month page and returns to the same monthly overview", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 6, 16, 12, 0));
     saveTradeHistory([createTrade("coin-month-1", "BTCUSDT", 12)]);
 
     render(<App />);

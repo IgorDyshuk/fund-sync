@@ -65,6 +65,7 @@ const english: Record<string, string> = {
   "Удалить всё": "Delete all",
   "Обзор за день": "Daily overview",
   "Обзор за месяц": "Monthly overview",
+  "Открыть обзор за месяц": "Open monthly overview",
   "Обзор за квартал": "Quarterly overview",
   "Обзор за год": "Yearly overview",
   "Обзор за период": "Range overview",

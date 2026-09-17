@@ -44,7 +44,7 @@ export function MonthlyPerformanceWidget({
       <div className="border-t border-white/[0.08] px-3 py-3 sm:px-5 sm:py-4">
         {summary.tradeCount > 0 ? (
           <div className="flex min-h-[138px] items-center gap-4 sm:gap-6">
-            <MonthlyDonutChart summary={summary} />
+            <MonthlyDonutChart summary={summary} onClick={onOpen} />
 
             <div className="min-w-0 flex-1 space-y-2.5 sm:space-y-3">
               {visibleCoins.map((coin, index) => (
@@ -79,7 +79,7 @@ export function MonthlyPerformanceWidget({
           </div>
         ) : (
           <div className="flex min-h-[138px] items-center gap-4 sm:gap-6">
-            <MonthlyDonutChart summary={summary} />
+            <MonthlyDonutChart summary={summary} onClick={onOpen} />
             <div className="min-w-0">
               <p className="text-sm font-medium text-[#d6dae1]">
                 {t("Нет закрытых связок")}

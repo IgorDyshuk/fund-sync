@@ -63,6 +63,23 @@ describe("monthly analytics UI", () => {
     expect(screen.getByText("Нет закрытых связок")).not.toBeNull();
   });
 
+  it("opens the detailed page when the monthly donut is selected", () => {
+    const onOpen = vi.fn();
+    render(
+      <MonthlyPerformanceWidget
+        history={[createTrade("one", "BTCUSDT", 20, "05.07.2026 12:00")]}
+        monthDate={new Date(2026, 6, 1)}
+        onOpen={onOpen}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Открыть обзор за месяц" }),
+    );
+
+    expect(onOpen).toHaveBeenCalledOnce();
+  });
+
   it("limits the compact widget list to four coins", () => {
     render(
       <MonthlyPerformanceWidget
